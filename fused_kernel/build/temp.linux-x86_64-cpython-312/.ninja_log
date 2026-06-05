@@ -1,0 +1,6 @@
+# ninja log v7
+0	22459	1780327534290045095	/home/zheng-pingze/桌面/projects/fused_kernel/build/temp.linux-x86_64-cpython-312/add_rmsnorm.o	d56cd1503f6f9813
+1	22534	1780327556890011597	/home/zheng-pingze/桌面/projects/fused_kernel/build/temp.linux-x86_64-cpython-312/inplace_rotary_embed.o	fa2ec6d199105740
+9	22383	1780329484838201166	/home/zheng-pingze/桌面/projects/fused_kernel/build/temp.linux-x86_64-cpython-312/inplace_rotary_embed.o	fa2ec6d199105740
+12	22515	1780329899372534145	/home/zheng-pingze/桌面/projects/fused_kernel/build/temp.linux-x86_64-cpython-312/inplace_rotary_embed.o	fa2ec6d199105740
+9	22701	1780330084532862206	/home/zheng-pingze/桌面/projects/fused_kernel/build/temp.linux-x86_64-cpython-312/inplace_rotary_embed.o	fa2ec6d199105740

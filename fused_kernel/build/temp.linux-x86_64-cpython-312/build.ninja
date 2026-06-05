@@ -1,0 +1,37 @@
+ninja_required_version = 1.3
+cxx = c++
+nvcc = /home/zheng-pingze/cuda-13.2/bin/nvcc
+
+cflags = -pthread -B /home/zheng-pingze/Anaconda/envs/vllm/compiler_compat -fno-strict-overflow -Wsign-compare -DNDEBUG -O2 -Wall -fPIC -O2 -isystem /home/zheng-pingze/Anaconda/envs/vllm/include -fPIC -O2 -isystem /home/zheng-pingze/Anaconda/envs/vllm/include -fPIC -I/home/zheng-pingze/Anaconda/envs/vllm/lib/python3.12/site-packages/torch/include -I/home/zheng-pingze/Anaconda/envs/vllm/lib/python3.12/site-packages/torch/include/torch/csrc/api/include -I/home/zheng-pingze/cuda-13.2/include -I/home/zheng-pingze/Anaconda/envs/vllm/include/python3.12 -c
+post_cflags = -O3 -DTORCH_API_INCLUDE_EXTENSION_H -DTORCH_EXTENSION_NAME=fused_rope_cuda -std=c++17
+cuda_cflags = -I/home/zheng-pingze/Anaconda/envs/vllm/lib/python3.12/site-packages/torch/include -I/home/zheng-pingze/Anaconda/envs/vllm/lib/python3.12/site-packages/torch/include/torch/csrc/api/include -I/home/zheng-pingze/cuda-13.2/include -I/home/zheng-pingze/Anaconda/envs/vllm/include/python3.12 -c
+cuda_post_cflags = -D__CUDA_NO_HALF_OPERATORS__ -D__CUDA_NO_HALF_CONVERSIONS__ -D__CUDA_NO_BFLOAT16_CONVERSIONS__ -D__CUDA_NO_HALF2_OPERATORS__ --expt-relaxed-constexpr --compiler-options ''"'"'-fPIC'"'"'' -O3 --use_fast_math -DTORCH_API_INCLUDE_EXTENSION_H -DTORCH_EXTENSION_NAME=fused_rope_cuda -gencode=arch=compute_89,code=compute_89 -gencode=arch=compute_89,code=sm_89 -std=c++17
+cuda_dlink_post_cflags = 
+sycl_dlink_post_cflags = 
+ldflags = 
+
+rule compile
+  command = $cxx -MMD -MF $out.d $cflags -c $in -o $out $post_cflags
+  depfile = $out.d
+  deps = gcc
+
+rule cuda_compile
+  depfile = $out.d
+  deps = gcc
+  command = $nvcc -MD -MF $out.d $cuda_cflags -c $in -o $out $cuda_post_cflags
+
+
+
+
+
+
+
+build /home/zheng-pingze/桌面/projects/fused_kernel/build/temp.linux-x86_64-cpython-312/inplace_rotary_embed.o: cuda_compile /home/zheng-pingze/桌面/projects/fused_kernel/inplace_rotary_embed.cu
+
+
+
+
+
+
+
+
