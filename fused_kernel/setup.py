@@ -2,8 +2,10 @@ import os
 from setuptools import setup
 from torch.utils.cpp_extension import BuildExtension, CUDAExtension
 
-# 强行注入，干掉 OSError
-os.environ["CUDA_HOME"] = "/home/zheng-pingze/cuda-13.2"
+# 强行注入，干掉 OSError（本机 cu13 工具链）
+os.environ.setdefault(
+    "CUDA_HOME", "/root/autodl-tmp/site-packages/nvidia/cu13"
+)
 
 setup(
     name='pz_vllm_ops',
@@ -14,12 +16,12 @@ setup(
         CUDAExtension(
             name='fused_add_rmsnorm',
             sources=['add_rmsnorm.cu'],
-            extra_compile_args={'cxx': ['-O3'], 'nvcc': ['-O3', '--use_fast_math']}
+            extra_compile_args={'cxx': ['-O3'], 'nvcc': ['-O3', '--use_fast_math', '-DCCCL_DISABLE_CTK_COMPATIBILITY_CHECK']}
         ),
         CUDAExtension(
             name='fused_rope_cuda',
             sources=['inplace_rotary_embed.cu'],
-            extra_compile_args={'cxx': ['-O3'], 'nvcc': ['-O3', '--use_fast_math']}
+            extra_compile_args={'cxx': ['-O3'], 'nvcc': ['-O3', '--use_fast_math', '-DCCCL_DISABLE_CTK_COMPATIBILITY_CHECK']}
         )
     ],
     cmdclass={
