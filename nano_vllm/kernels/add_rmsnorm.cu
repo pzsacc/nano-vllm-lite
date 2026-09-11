@@ -11,6 +11,7 @@
  */
 
 #include <torch/extension.h>
+#include <ATen/cuda/CUDAContext.h>
 #include <cuda_runtime.h>
 
 template <typename scalar_t>
@@ -85,7 +86,8 @@ std::tuple<torch::Tensor, torch::Tensor> add_rmsnorm_forward(
     AT_DISPATCH_FLOATING_TYPES_AND2(
         at::ScalarType::Half, at::ScalarType::BFloat16,
         x.scalar_type(), "add_rmsnorm_forward", ([&] {
-            add_rmsnorm_kernel<scalar_t><<<blocks, threads, shared_mem_size>>>(
+            auto stream = at::cuda::getCurrentCUDAStream();
+            add_rmsnorm_kernel<scalar_t><<<blocks, threads, shared_mem_size, stream>>>(
                 out.data_ptr<scalar_t>(),
                 residual.data_ptr<scalar_t>(),
                 x.data_ptr<scalar_t>(),

@@ -12,6 +12,7 @@
  */
 
 #include <torch/extension.h>
+#include <ATen/cuda/CUDAContext.h>
 #include <cuda_runtime.h>
 
 template <typename scalar_t>
@@ -70,7 +71,8 @@ void apply_fused_rope_inplace(
             // Launch for Q
             dim3 grid_q(num_tokens, num_q_heads);
             dim3 block(head_size / 2);
-            rope_v3_ultimate_kernel<scalar_t><<<grid_q, block>>>(
+            auto stream = at::cuda::getCurrentCUDAStream();
+            rope_v3_ultimate_kernel<scalar_t><<<grid_q, block, 0, stream>>>(
                 q.data_ptr<scalar_t>(),
                 pos_ids.data_ptr<int>(),
                 cos_sin_cache.data_ptr<scalar_t>(),
@@ -79,7 +81,7 @@ void apply_fused_rope_inplace(
 
             // Launch for K
             dim3 grid_k(num_tokens, num_k_heads);
-            rope_v3_ultimate_kernel<scalar_t><<<grid_k, block>>>(
+            rope_v3_ultimate_kernel<scalar_t><<<grid_k, block, 0, stream>>>(
                 k.data_ptr<scalar_t>(),
                 pos_ids.data_ptr<int>(),
                 cos_sin_cache.data_ptr<scalar_t>(),
