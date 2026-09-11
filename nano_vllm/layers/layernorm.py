@@ -12,6 +12,10 @@ layers/layernorm.py - RMSNorm 实现（支持融合 Add+Norm）
 import torch
 import torch.nn as nn
 
+from nano_vllm.kernels import apply_add_rmsnorm, is_cuda_kernels_available
+
+_CUDA_ADD_RMSNORM = is_cuda_kernels_available()
+
 
 class RMSNorm(nn.Module):
     """Root Mean Square Layer Normalization
@@ -79,4 +83,6 @@ class RMSNorm(nn.Module):
         """
         if residual is None:
             return self.rms_forward(x)
+        if _CUDA_ADD_RMSNORM and x.is_cuda and x.dim() == 2:
+            return apply_add_rmsnorm(x, residual, self.weight, self.eps)
         return self.add_rms_forward(x, residual)
