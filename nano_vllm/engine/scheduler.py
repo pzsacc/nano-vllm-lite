@@ -56,6 +56,26 @@ class Scheduler:
         """
         self.waiting.append(seq)
 
+    def abort(self, seq_id: int) -> bool:
+        """中止指定序列：从队列移除并释放其 KV cache
+
+        用于客户端断开/取消请求的场景，避免继续生成无人消费的 token。
+
+        Args:
+            seq_id: 要中止的序列 ID
+
+        Returns:
+            是否成功中止（序列不存在时返回 False）
+        """
+        for queue in (self.waiting, self.running):
+            for seq in queue:
+                if seq.seq_id == seq_id:
+                    queue.remove(seq)
+                    seq.status = SequenceStatus.ABORTED
+                    self.block_manager.deallocate(seq)
+                    return True
+        return False
+
     def schedule(self) -> tuple[list[Sequence], bool]:
         """执行一步调度，返回本步要处理的序列列表
 

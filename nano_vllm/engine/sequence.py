@@ -20,6 +20,7 @@ class SequenceStatus(Enum):
     WAITING = auto()    # 等待 prefill 调度
     RUNNING = auto()    # 已完成 prefill，正在 decode
     FINISHED = auto()   # 生成完毕（遇到 EOS 或达到 max_tokens）
+    ABORTED = auto()    # 被客户端取消
 
 
 class Sequence:
