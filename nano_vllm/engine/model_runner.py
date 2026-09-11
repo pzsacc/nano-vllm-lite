@@ -267,7 +267,7 @@ class ModelRunner:
         for seq in seqs:
             input_ids.append(seq.last_token)
             positions.append(seq.num_tokens - 1)
-            context_lens.append(seq.num_tokens - 1)
+            context_lens.append(seq.num_tokens)
             last_block_idx = len(seq.block_table) - 1
             last_offset = (seq.num_tokens - 1) % self.config.kvcache_block_size
             slot = seq.block_table[last_block_idx] * self.config.kvcache_block_size + last_offset
