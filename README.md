@@ -1,225 +1,132 @@
-# nano-vllm
+<p align="center">
+  <img src="logo.jpg" width="180" alt="nano-vllm-lite">
+</p>
 
-A lightweight high-performance LLM inference engine (~3900 lines of Python + CUDA) implementing enterprise-grade optimizations from scratch.
+<h1 align="center">nano-vllm-lite</h1>
 
-## Highlights
+<p align="center">
+  <b>从零手写的 LLM 推理引擎：每个优化都有实测数据、踩坑复盘与正确性测试</b><br>
+  A from-scratch LLM inference engine — every optimization backed by real benchmarks, war stories, and parity tests.
+</p>
 
-- **2626 tokens/s** throughput on a single RTX 4080 Super (Qwen3-0.6B, 256 concurrent requests)
-- **4ms TPOT** (Time Per Output Token) in low-latency mode with CUDA Graph
-- **~3900 lines** total code — readable, hackable, and interview-ready
-- Full parity with vLLM's core optimization stack
+<p align="center">
+  <a href="README.en.md">English</a> · <a href="docs/README.md">优化系列文档</a> · <a href="#-优化系列">优化列表</a> · <a href="README.en.md#-optimization-series">Docs</a>
+</p>
 
-## Features
+## 这是什么
 
-| Feature | Description |
-|---------|-------------|
-| PagedAttention | OS-style paged KV cache memory management |
-| Prefix Caching | Content-addressed block reuse via xxhash |
-| Chunked Prefill | Sarathi-style decode-first mixed scheduling |
-| FP8 KV Cache | float8_e4m3fn quantization with custom Triton decode kernel |
-| CUDA Graph | Static graph capture/replay for decode acceleration |
-| Tensor Parallelism | NCCL + SharedMemory IPC coordination |
-| Continuous Batching | Dynamic batching with preemption |
-| FlashAttention | Prefill via flash_attn_varlen_func |
-| Async Streaming | asyncio-based token streaming engine |
-| Custom CUDA Kernels | Fused Add+RMSNorm, In-place RoPE |
-| OpenAI-compatible API | /v1/completions with SSE streaming |
+一个 ~3900 行的 LLM 推理引擎（Python + CUDA + Triton），实现企业级推理优化栈。
+它不是 vLLM 的精简复制，而是**每个优化都可以追问"为什么快、快多少、错在哪"的教学项目**：
 
-## Quick Start
+- **有数据**：每个优化附实测 benchmark（RTX 5090 / 4080 Super），附可复现命令
+- **有深度**：[docs/06](docs/06-debugging-stories.md) 复盘两个真实 bug——所有指标正常但输出是错的，如何定位
+- **有兜底**：23 个测试，每个优化都有 parity 断言，防止"性能提升，正确性崩塌"
 
-### Installation
+兼容 vLLM 风格 API：`LLM(model).generate(prompts, SamplingParams(...))`
 
-```bash
-git clone https://github.com/pzsacc/nano-vllm-lite.git
-cd nano-vllm-lite
+## 核心指标
 
-# Basic install
-pip install -e .
+| 场景 | 指标 | 数值 |
+|---|---|---|
+| 低时延（8 并发） | TPOT | **3.9ms**（eager 36.3ms，**9.3×**） |
+| 高吞吐（256 并发） | 输出吞吐 | **2626 tok/s**（单卡 4080S） |
+| Prefix 90% 命中 | TTFT | **-67%**，吞吐 +78% |
+| FP8 KV | 容量 | **2×**（61→123 并发序列） |
 
-# With API server dependencies
-pip install -e ".[server]"
+> 实测环境与复现命令见 [docs/07](docs/07-benchmarks-5090.md)
+
+## 核心代码地图（3 天读完）
+
+```
+入口    llm.py ───────────────────────────────────── ~50 行
+          │
+调度 ★  engine/scheduler.py ──────────────────────── 260 行   decode优先 + chunked预算
+          │
+执行 ★  engine/model_runner.py ───────────────────── 450 行   CUDA Graph / 输入准备 / 采样
+          │
+算子 ★  layers/attention.py ──────────────────────── 310 行   PagedAttn / FP8 / Triton
+          │        layers/linear.py · layernorm.py · rotary_embedding.py · sampler.py
+          │
+内核    nano_vllm/kernels/*.cu ───────────────────── ~200 行   fused rmsnorm / inplace rope
+          │
+基础    engine/block_manager.py ──────────────────── 270 行 ★ prefix caching
+        engine/sequence.py · utils/context.py · engine/async_llm_engine.py
 ```
 
-**Requirements:** Python >= 3.10, PyTorch >= 2.0, CUDA >= 12.0, flash-attn >= 2.5
+3 天读码计划与全局设计模式 → [docs/00-architecture.md](docs/00-architecture.md)
 
-### Offline Inference
+## 快速开始
+
+```bash
+pip install -e .            # 含 CUDA kernel 编译 (无 toolkit 时自动降级 torch.compile)
+```
 
 ```python
 from nano_vllm import LLM, SamplingParams
 
 llm = LLM(model="/path/to/Qwen3-0.6B")
-outputs = llm.generate(
-    ["What is the meaning of life?"],
-    SamplingParams(temperature=0.8, max_tokens=128)
-)
-print(outputs[0]["text"])
+out = llm.generate(["介绍一下 CUDA Graph"], SamplingParams(temperature=0.6, max_tokens=128))
+print(out[0]["text"])
 ```
 
-### Streaming API Server
+流式 API Server（OpenAI 兼容 SSE）：
 
 ```bash
 python examples/streaming_server.py --model /path/to/Qwen3-0.6B --port 8000
+curl http://localhost:8000/v1/completions -H "Content-Type: application/json" \
+    -d '{"prompt": "Hello", "max_tokens": 64, "stream": true}'
+```
+
+## ⚡ 优化系列
+
+| # | 优化 | 收益 | 文档 |
+|---|------|------|------|
+| 01 | CUDA Graph | 低并发 TPOT 36→3.9ms（9.3×） | [01-cuda-graph](docs/01-cuda-graph.md) |
+| 02 | Prefix Caching | 命中 90% 时 TTFT -67% | [02-prefix-caching](docs/02-prefix-caching.md) |
+| 03 | Chunked Prefill | 混合负载 TPOT P99 可控 | [03-chunked-prefill](docs/03-chunked-prefill.md) |
+| 04 | FP8 KV Cache | 容量 2×（含"何时值得"的决策框架） | [04-fp8-kv-cache](docs/04-fp8-kv-cache.md) |
+| 05 | CUDA Kernels | Add+RMSNorm 带宽 3-4× | [05-cuda-kernels](docs/05-cuda-kernels.md) |
+| 06 | **Debug 复盘** | "指标全对输出全错"的定位方法论 | [06-debugging-stories](docs/06-debugging-stories.md) ⭐ |
+| 07 | Benchmark 方法论 | 三层压测体系（服务/显存/算子） | [07-benchmarks-5090](docs/07-benchmarks-5090.md) |
+| 08 | Async 引擎 | 流式输出 3 个工程细节 | [08-async-engine](docs/08-async-engine.md) |
+
+## Profiling 路径（L0→L3）
+
+优化不是玄学，是一条可复现的验证链：
+
+```
+L0 对不对   pytest tests/                正确性断言 (23 个, GPU 用例 -m gpu 分流)
+L1 多快     bench.py 1   场景压测          TTFT/TPOT/TPS/QPS
+L2 显存     bench.py 2   组件占比/容量     KV 探针 (FP8 vs FP16)
+L3 算子     bench.py 3   profiler/带宽     定位到具体 kernel
 ```
 
 ```bash
-# Test with curl
-curl http://localhost:8000/v1/completions \
-  -H "Content-Type: application/json" \
-  -d '{"prompt": "Hello", "max_tokens": 64, "stream": true}'
+python -m benchmarks.bench 1 --model /path/to/model --scenarios mixed   # 暴露 P99
+python -m benchmarks.bench 2 --model /path/to/model                     # KV 容量探针
+python -m benchmarks.bench 3 --tool bandwidth                           # 算子对拍
 ```
 
-### Configuration
-
-```python
-llm = LLM(
-    model="/path/to/model",
-    max_model_len=4096,           # Max context length
-    enable_chunked_prefill=True,  # Decode-first mixed scheduling
-    enable_fp8_kvcache=False,     # FP8 KV cache (2x capacity)
-    enable_prefix_caching=True,   # Content-addressed prefix reuse
-    enforce_eager=False,          # False = enable CUDA Graph
-    tensor_parallel_size=1,       # TP world size
-    chunk_size=1024,              # Chunked prefill budget
-    kvcache_block_size=256,       # KV cache page size
-    gpu_memory_utilization=0.9,   # GPU memory fraction for KV cache
-)
-```
-
-## Benchmarks
-
-### Environment
-
-- **GPU:** NVIDIA RTX 4080 Super (32GB VRAM)
-- **Model:** Qwen3-0.6B (28 layers, 1024 hidden, GQA 16/8 heads)
-- **Software:** PyTorch 2.7, CUDA 12.8, flash-attn 2.8.3, Triton 3.3
-- **Mode:** CUDA Graph + FP16 KV Cache + Chunked Prefill
-
-### Results
-
-| Scenario | Requests | Avg Input | Avg Output | TTFT (ms) | TPOT (ms) | Output TPS | QPS |
-|----------|----------|-----------|------------|-----------|-----------|------------|-----|
-| Low-latency (short) | 8 | 128 | 31 | 835 | **4.0** | 258 | 8.3 |
-| Low-latency (medium) | 8 | 512 | 63 | 112 | **5.3** | 1,113 | 17.7 |
-| Low-latency (long input) | 4 | 1024 | 31 | 109 | **6.2** | 403 | 13.0 |
-| **High-throughput** | **256** | 304 | 127 | 3,107 | 67.9 | **2,626** | **20.7** |
-| High-throughput (long) | 256 | 543 | 511 | 8,632 | 73.4 | **2,523** | 4.9 |
-| PrefixCache 90% hit | 64 | 512 | 63 | 471 | **30.7** | 1,579 | 25.1 |
-| PrefixCache 50% hit | 64 | 512 | 63 | 1,360 | 38.5 | 1,035 | 16.4 |
-| Long context (2K) | 16 | 2048 | 127 | 2,594 | 30.8 | 302 | 2.4 |
-
-### Running Benchmarks
+## 测试
 
 ```bash
-# Full comprehensive benchmark
-python benchmarks/bench_comprehensive.py --model /path/to/model --scenarios all
-
-# Specific scenarios
-python benchmarks/bench_comprehensive.py --model /path/to/model \
-    --scenarios low_latency high_throughput prefix_cache long_context
-
-# Throughput-only benchmark
-python benchmarks/bench_throughput.py --model /path/to/model --num-seqs 256
-
-# Latency-only benchmark
-python benchmarks/bench_latency.py --model /path/to/model --input-len 512 --output-len 128
-
-# With FP8 KV Cache (2x capacity, custom Triton decode)
-python benchmarks/bench_comprehensive.py --model /path/to/model --enable-fp8-kvcache
-
-# Eager mode (disable CUDA Graph for debugging)
-python benchmarks/bench_comprehensive.py --model /path/to/model --enforce-eager
+pytest tests/ -m "not gpu"   # CPU 可跑 (调度/缓存/解码逻辑)
+pytest tests/                # 全量 (含 CUDA Graph parity / kernel parity)
 ```
 
-### Performance Breakdown: CUDA Graph Impact
+每个测试文件头部标注"防的是哪个 bug"——测试即文档。
 
-| Metric | Eager Mode | CUDA Graph | Speedup |
-|--------|-----------|------------|---------|
-| TPOT (bs=8) | 129 ms | 4.0 ms | **32x** |
-| TPOT (bs=256) | 122 ms | 68 ms | 1.8x |
-| Output TPS (256 concurrent) | 1,358 | 2,626 | 1.9x |
-| QPS (PrefixCache) | 7.99 | 25.07 | 3.1x |
+## Roadmap
 
-## Architecture
+- [ ] FP8 decode 换 FlashInfer（已在本机验证 FP8 KV decode 跑通且快于 FP16）
+- [ ] ZMQ 进程化引擎（对照 vLLM V1 EngineCore 架构）
+- [ ] Speculative Decoding（N-gram proposer）
+- [ ] 模型注册机制（LLaMA / Mistral）
 
-```
-┌──────────────────────────────────────────────────────────┐
-│                  LLMEngine / AsyncLLMEngine               │
-│   (Orchestration: tokenize → schedule → run → postprocess)│
-├──────────────────────────────────────────────────────────┤
-│          Scheduler              ModelRunner               │
-│  ┌──────────────────┐   ┌───────────────────────────┐    │
-│  │ Decode-first     │   │ NCCL TP Coordination      │    │
-│  │ Chunked Prefill  │   │ Static-tensor CUDA Graph  │    │
-│  │ BlockManager     │   │ KV Cache Allocation       │    │
-│  │  └─ PrefixCache  │   │ Warmup + torch.compile    │    │
-│  └──────────────────┘   └───────────────────────────┘    │
-├──────────────────────────────────────────────────────────┤
-│              Model (Qwen3ForCausalLM + Registry)          │
-├──────────────────────────────────────────────────────────┤
-│                  Layers (TP + Fused Ops)                   │
-│  Attention(FP8/FP16) | Linear(Col/Row/QKV) | RMSNorm     │
-│  Sampler(Gumbel-max) | SiluAndMul | RoPE | Embed/Head    │
-└──────────────────────────────────────────────────────────┘
-```
+## 致谢
 
-## Project Structure
-
-```
-nano-vllm/
-├── setup.py                        # Install + CUDA kernel compilation
-├── README.md                       # This file
-├── DEVELOPMENT.md                  # Detailed development documentation
-├── nano_vllm/
-│   ├── __init__.py                 # Package entry (LLM, Config, SamplingParams)
-│   ├── config.py                   # Global config with feature flags
-│   ├── sampling_params.py          # Sampling parameters
-│   ├── engine/
-│   │   ├── llm_engine.py          # Synchronous inference engine
-│   │   ├── async_llm_engine.py    # Async streaming engine
-│   │   ├── scheduler.py           # Chunked Prefill mixed scheduler
-│   │   ├── block_manager.py       # Paged KV cache block manager
-│   │   ├── model_runner.py        # GPU executor (CUDA Graph + TP)
-│   │   └── sequence.py            # Sequence state management
-│   ├── layers/
-│   │   ├── attention.py           # Paged Attention (FP8 + FlashAttn)
-│   │   ├── linear.py              # TP linear layers
-│   │   ├── layernorm.py           # Fused Add+RMSNorm
-│   │   ├── rotary_embedding.py    # RoPE positional encoding
-│   │   ├── activation.py          # Fused SiLU+Gate
-│   │   ├── sampler.py             # Gumbel-max sampler
-│   │   └── embed_head.py          # Vocab-parallel Embedding + LM Head
-│   ├── models/
-│   │   ├── __init__.py            # Model registry
-│   │   └── qwen3.py               # Qwen3 architecture
-│   ├── kernels/
-│   │   ├── __init__.py            # CUDA kernel Python wrappers
-│   │   ├── add_rmsnorm.cu         # Fused Add+RMSNorm CUDA kernel
-│   │   └── inplace_rotary_embed.cu # In-place RoPE CUDA kernel
-│   └── utils/
-│       ├── context.py             # Global inference context
-│       └── loader.py              # SafeTensors weight loader
-├── benchmarks/
-│   ├── bench_comprehensive.py     # Full benchmark suite
-│   ├── bench_throughput.py        # Throughput benchmark
-│   └── bench_latency.py           # Latency benchmark
-├── examples/
-│   ├── offline_inference.py       # Batch inference example
-│   └── streaming_server.py        # OpenAI-compatible API server
-└── tests/
-    └── test_block_manager.py      # Unit tests
-```
-
-## Comparison with vLLM
-
-| Dimension | nano-vllm | vLLM |
-|-----------|-----------|------|
-| Code size | ~3,900 lines | ~500K lines |
-| Model support | Qwen3 (extensible) | 100+ architectures |
-| Quantization | FP8 KV Cache | AWQ/GPTQ/FP8/INT8/MXFP4 |
-| Speculative decoding | Planned | EAGLE/Medusa/ngram |
-| Distributed | Single-node TP | Multi-node TP/PP/EP |
-| API | Basic OpenAI compat | Full OpenAI + gRPC |
-| Throughput | ~95% of vLLM | Baseline |
+- [nano-vllm](https://github.com/GeeeekExplorer/nano-vllm) — 本项目的起点与 baseline
+- [vLLM](https://github.com/vllm-project/vllm) — 架构参照
 
 ## License
 
