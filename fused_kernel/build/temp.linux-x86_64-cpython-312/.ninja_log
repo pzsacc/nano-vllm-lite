@@ -1,3 +1,0 @@
-# ninja log v7
-0	40341	1788963324841018033	/root/autodl-tmp/projects/nano-vllm-lite/fused_kernel/build/temp.linux-x86_64-cpython-312/add_rmsnorm.o	d5a192bf90c129fb
-3	38626	1788963365446010808	/root/autodl-tmp/projects/nano-vllm-lite/fused_kernel/build/temp.linux-x86_64-cpython-312/inplace_rotary_embed.o	5b7768b11bd5843d

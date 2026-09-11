@@ -216,3 +216,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# CUDA 扩展构建产物
+fused_kernel/
+*.so
+*.o
+.pytest_cache/
+profiler_traces/
