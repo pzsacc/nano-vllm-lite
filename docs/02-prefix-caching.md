@@ -1,8 +1,8 @@
-# 02 · Prefix Caching — 共享前缀免重算
+# 02 · 相同的 token，凭什么算两遍？
 
-[上一篇](01-cuda-graph.md) | [目录](README.md) | 下一篇: [Chunked Prefill](03-chunked-prefill.md)
-
-> 核心代码: `engine/block_manager.py` · 正确性测试: `tests/test_prefix_cache.py`
+> **Prefix Caching · 90% 命中时 TTFT -67%，吞吐 +78%**
+> 核心代码 `engine/block_manager.py` · 测试 `tests/test_prefix_cache.py`
+> [战役目录](README.md) · 上一篇 [01 · CPU 在喂饭，GPU 在挨饿](01-cuda-graph.md)
 
 ### 瓶颈现象
 
@@ -79,3 +79,7 @@ def deallocate(self, seq):
 > Prefix Cache 在任何有前缀重复的场景 (System Prompt, RAG, 多轮对话) 都能显著降低 TTFT 和 提升吞吐。零侵入、零精度损失，应默认开启。
 
 ---
+
+---
+
+**下一战**：延迟稳了，但一个 2048-token 的长请求正在逼近整个批次——[03 · 一个长请求，劫持了整个批次](03-chunked-prefill.md)

@@ -1,9 +1,7 @@
-# 06 · Debug 复盘 — 两个真实 Bug 的完整定位过程
+# 06 · 指标全绿，输出全错
 
-[上一篇](05-cuda-kernels.md) | [目录](README.md) | 下一篇: [Benchmark 方法论](07-benchmarks-5090.md)
-
-> 这两个 bug 都是在接入 Fused Add+RMSNorm kernel 时暴露的。现象极具迷惑性：
-> **所有性能指标完全正常，唯独输出是错的**。定位过程比修复本身更有价值。
+> **两个真实 Bug 的定位全过程——本系列技术含量最高的一章**
+> [战役目录](README.md) · 上一篇 [05 · RMSNorm 的账单](05-cuda-kernels.md)
 
 ## Bug 1: 输出"慢一拍" — context_len 差一
 
@@ -122,3 +120,7 @@ CUDA Graph capture 的原理是劫持 **当前 stream** 上的所有 launch。
 | 防回归 | graph parity 重复检测 | graph parity + kernel parity |
 
 [上一篇](05-cuda-kernels.md) | [目录](README.md) | [下一篇](07-benchmarks-5090.md)
+
+---
+
+**下一战**：修好了，怎么证明没修坏？数字必须先可信——[07 · 数字从哪来](07-benchmarks-5090.md)

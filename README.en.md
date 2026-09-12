@@ -79,18 +79,18 @@ curl http://localhost:8000/v1/completions -H "Content-Type: application/json" \
     -d '{"prompt": "Hello", "max_tokens": 64, "stream": true}'
 ```
 
-## ⚡ Optimization Series
+## ⚡ Optimization Series — *8 battles, from 36ms to 3.9ms*
 
-| # | Optimization | Gain | Doc |
-|---|------|------|------|
-| 01 | CUDA Graph | Low-concurrency TPOT 36→3.9ms (9.3×) | [01-cuda-graph](docs/01-cuda-graph.md) |
-| 02 | Prefix Caching | TTFT -67% @ 90% hit rate | [02-prefix-caching](docs/02-prefix-caching.md) |
-| 03 | Chunked Prefill | Bounded TPOT P99 under mixed load | [03-chunked-prefill](docs/03-chunked-prefill.md) |
-| 04 | FP8 KV Cache | 2× capacity (with a "when it's worth it" framework) | [04-fp8-kv-cache](docs/04-fp8-kv-cache.md) |
-| 05 | CUDA Kernels | Add+RMSNorm bandwidth 3-4× | [05-cuda-kernels](docs/05-cuda-kernels.md) |
-| 06 | **Debug War Stories** | Methodology for "metrics fine, output garbage" | [06-debugging-stories](docs/06-debugging-stories.md) ⭐ |
-| 07 | Benchmark Methodology | 3-level measurement (service/memory/kernel) | [07-benchmarks-5090](docs/07-benchmarks-5090.md) |
-| 08 | Async Engine | 3 engineering details of token streaming | [08-async-engine](docs/08-async-engine.md) |
+| # | Battle | Gain |
+|---|------|------|
+| 01 | [The CPU is feeding, the GPU is starving](docs/01-cuda-graph.md) · CUDA Graph | TPOT 36.30 → 3.90ms (**9.3×**) |
+| 02 | [Why compute the same tokens twice?](docs/02-prefix-caching.md) · Prefix Caching | TTFT **-67%** @ 90% hit |
+| 03 | [One long request hijacks the whole batch](docs/03-chunked-prefill.md) · Chunked Prefill | Bounded TPOT P99 |
+| 04 | [Half the price, twice the capacity, one-sixth the speed](docs/04-fp8-kv-cache.md) · FP8 KV | **2×** capacity (decision framework) |
+| 05 | [RMSNorm's memory bill](docs/05-cuda-kernels.md) · CUDA Kernels | Op bandwidth **3-4×** |
+| 06 ⭐ | [All metrics green, output garbage](docs/06-debugging-stories.md) · Debug war stories | Locating invisible bugs |
+| 07 | [Where do the numbers come from](docs/07-benchmarks-5090.md) · Benchmarks | 3-level measurement |
+| 08 | [The last mile of a token](docs/08-async-engine.md) · Async Engine | 3 streaming details |
 
 ## Profiling Path (L0→L3)
 

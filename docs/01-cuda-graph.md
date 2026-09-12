@@ -1,8 +1,8 @@
-# 01 · CUDA Graph — 低并发场景的决定性优化
+# 01 · CPU 在喂饭，GPU 在挨饿
 
-[目录](README.md) | 下一篇: [Prefix Caching](02-prefix-caching.md)
-
-> 核心代码: `engine/model_runner.py` · 正确性测试: `tests/test_cudagraph_parity.py`
+> **CUDA Graph · TPOT 36.30ms → 3.90ms（9.3×）**
+> 核心代码 `engine/model_runner.py` · 测试 `tests/test_cudagraph_parity.py`
+> [战役目录](README.md) · 上一篇 [00 · 先看地图](00-architecture.md)
 
 ### 瓶颈现象 (关闭 CUDA Graph)
 
@@ -94,3 +94,7 @@ def run_model(self, has_prefill):
 > CUDA Graph 是低并发场景的**必选优化**，收益 3-7x 且无精度代价。高并发场景收益有限但也无害。
 
 ---
+
+---
+
+**下一战**：decode 快了，但每个新请求都在重算别人算过的前缀——[02 · 相同的 token，凭什么算两遍？](02-prefix-caching.md)

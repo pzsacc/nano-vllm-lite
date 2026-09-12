@@ -79,16 +79,16 @@ curl http://localhost:8000/v1/completions -H "Content-Type: application/json" \
 
 ## ⚡ 优化系列
 
-| # | 优化 | 收益 | 文档 |
-|---|------|------|------|
-| 01 | CUDA Graph | 低并发 TPOT 36→3.9ms（9.3×） | [01-cuda-graph](docs/01-cuda-graph.md) |
-| 02 | Prefix Caching | 命中 90% 时 TTFT -67% | [02-prefix-caching](docs/02-prefix-caching.md) |
-| 03 | Chunked Prefill | 混合负载 TPOT P99 可控 | [03-chunked-prefill](docs/03-chunked-prefill.md) |
-| 04 | FP8 KV Cache | 容量 2×（含"何时值得"的决策框架） | [04-fp8-kv-cache](docs/04-fp8-kv-cache.md) |
-| 05 | CUDA Kernels | Add+RMSNorm 带宽 3-4× | [05-cuda-kernels](docs/05-cuda-kernels.md) |
-| 06 | **Debug 复盘** | "指标全对输出全错"的定位方法论 | [06-debugging-stories](docs/06-debugging-stories.md) ⭐ |
-| 07 | Benchmark 方法论 | 三层压测体系（服务/显存/算子） | [07-benchmarks-5090](docs/07-benchmarks-5090.md) |
-| 08 | Async 引擎 | 流式输出 3 个工程细节 | [08-async-engine](docs/08-async-engine.md) |
+| 章 | 战役 | 收益 |
+|---|------|------|
+| 01 | [CPU 在喂饭，GPU 在挨饿](docs/01-cuda-graph.md) · CUDA Graph | TPOT 36.30 → 3.90ms（**9.3×**） |
+| 02 | [相同的 token，凭什么算两遍？](docs/02-prefix-caching.md) · Prefix Caching | 命中 90% 时 TTFT **-67%** |
+| 03 | [一个长请求，劫持了整个批次](docs/03-chunked-prefill.md) · Chunked Prefill | 混合负载 TPOT P99 有界化 |
+| 04 | [一半的价格，两倍的容量，六分之一的速度](docs/04-fp8-kv-cache.md) · FP8 KV | 容量 **2×**（附决策框架） |
+| 05 | [RMSNorm 的账单](docs/05-cuda-kernels.md) · CUDA Kernels | 算子带宽 **3-4×** |
+| 06 ⭐ | [指标全绿，输出全错](docs/06-debugging-stories.md) · Debug 复盘 | 两个真实 bug 的定位方法论 |
+| 07 | [数字从哪来](docs/07-benchmarks-5090.md) · Benchmark | 三层压测体系 |
+| 08 | [token 的最后一公里](docs/08-async-engine.md) · Async 引擎 | 流式输出 3 个工程细节 |
 
 ## Profiling 路径（L0→L3）
 

@@ -1,8 +1,8 @@
-# 08 · Async 引擎 — 流式输出的工程细节
+# 08 · token 的最后一公里
 
-[上一篇](07-benchmarks-5090.md) | [目录](README.md)
-
-> 核心代码: `engine/async_llm_engine.py` · 正确性测试: `tests/test_detokenizer.py`
+> **Async 引擎 · 取消传播 / UTF-8 完整性 / loop 陷阱**
+> 核心代码 `engine/async_llm_engine.py` · 测试 `tests/test_detokenizer.py`
+> [战役目录](README.md) · 上一篇 [07 · 数字从哪来](07-benchmarks-5090.md)
 
 ## 架构
 
@@ -101,3 +101,7 @@ Python 3.12 起在无运行 loop 的上下文里调用会告警/报错。正确�
 - 相关测试：`tests/test_detokenizer.py`（CPU 可跑）
 
 [上一篇](07-benchmarks-5090.md) | [目录](README.md)
+
+---
+
+**系列完**。回到 [战役目录](README.md)，或从 [00 · 先看地图](00-architecture.md) 再走一遍。

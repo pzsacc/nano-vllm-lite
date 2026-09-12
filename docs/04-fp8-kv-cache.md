@@ -1,8 +1,8 @@
-# 04 · FP8 KV Cache — 用速度换容量
+# 04 · 一半的价格，两倍的容量，六分之一的速度
 
-[上一篇](03-chunked-prefill.md) | [目录](README.md) | 下一篇: [CUDA Kernels](05-cuda-kernels.md)
-
-> 核心代码: `layers/attention.py` · 正确性测试: `tests/test_cudagraph_parity.py`
+> **FP8 KV Cache · 容量 61 → 123 seqs（decode 0.15×，附何时值得的决策框架）**
+> 核心代码 `layers/attention.py` · 测试 `tests/test_cudagraph_parity.py`
+> [战役目录](README.md) · 上一篇 [03 · 一个长请求，劫持了整个批次](03-chunked-prefill.md)
 
 ### 瓶颈现象
 
@@ -97,3 +97,7 @@ k, v = self.k_cache.to(q.dtype), self.v_cache.to(q.dtype)  # 整个 cache dequan
 > FP8 KV Cache 是**大模型 + 长上下文 + 内存受限**场景的应急方案。当前 Triton decode kernel 性能远不及 flash_attn，需要更深度的 kernel 优化 (或等待 flash_attn 原生 FP8 支持) 才能实用。
 
 ---
+
+---
+
+**下一战**：容量到手，回头打磨算子本身——[05 · RMSNorm 的账单：每个字节都要过内存](05-cuda-kernels.md)
