@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="logo.jpg" width="180" alt="nano-vllm-lite">
+  <img src="docs/assets/logo.svg" width="180" alt="nano-vllm-lite">
 </p>
 
 <h1 align="center">nano-vllm-lite</h1>
