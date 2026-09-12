@@ -16,8 +16,14 @@ Decode 阶段根据 enable_fp8_kvcache 选择 FlashAttention 或自定义 Triton
 
 import torch
 import torch.nn as nn
-import triton
-import triton.language as tl
+
+try:
+    import triton
+    import triton.language as tl
+    _TRITON_AVAILABLE = True
+except ImportError:
+    _TRITON_AVAILABLE = False
+
 try:
     from flash_attn import flash_attn_varlen_func, flash_attn_with_kvcache
 except ImportError:
@@ -72,6 +78,10 @@ def store_kvcache(key: torch.Tensor, value: torch.Tensor,
     """
     num_tokens, num_heads, head_dim = key.shape
     D = num_heads * head_dim
+    if not _TRITON_AVAILABLE:
+        raise RuntimeError(
+            "store_kvcache 需要 triton (pip install triton)。"
+            "无 GPU 环境请使用 tests/ 中的 CPU 单测。")
     store_kvcache_kernel[(num_tokens,)](
         key, key.stride(0),
         value, value.stride(0),
