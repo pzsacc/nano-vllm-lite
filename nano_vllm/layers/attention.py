@@ -24,6 +24,29 @@ try:
 except ImportError:
     _TRITON_AVAILABLE = False
 
+    class _TritonStub:
+        """triton 缺失时的占位模块：允许包导入（CPU 环境/CI），
+        装饰器透传保留函数定义，任何 kernel launch 在运行时显式报错"""
+
+        def __getattr__(self, name):
+            return _TritonStub()
+
+        def __getitem__(self, grid):
+            raise RuntimeError(
+                "triton 未安装：pip install triton（GPU 环境运行引擎必需）")
+
+        def __call__(self, *args, **kwargs):
+            raise RuntimeError(
+                "triton 未安装：pip install triton（GPU 环境运行引擎必需）")
+
+        def jit(self, func=None, **kwargs):
+            if func is not None:
+                return func
+            return lambda f: f
+
+    triton = _TritonStub()
+    tl = _TritonStub()
+
 try:
     from flash_attn import flash_attn_varlen_func, flash_attn_with_kvcache
 except ImportError:
