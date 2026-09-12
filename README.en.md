@@ -5,62 +5,40 @@
 <h1 align="center">nano-vllm-lite</h1>
 
 <p align="center">
-  <b>A from-scratch LLM inference engine — every optimization backed by real benchmarks, war stories, and parity tests.</b><br>
-  从零手写的 LLM 推理引擎：每个优化都有实测数据、踩坑复盘与正确性测试。
+  <b>A lightweight LLM inference engine in ~3900 lines — every optimization measured and covered by parity tests</b>
 </p>
 
 <p align="center">
-  <a href="README.md">中文</a> · <a href="docs/README.md">Optimization Series</a> · <a href="#-optimization-series">Series</a>
+  <a href="README.md">中文</a> · <a href="docs/README.md">Documentation</a> · <a href="#benchmarks">Benchmarks</a>
 </p>
 
-## What is this
+## Overview
 
-A ~3900-line LLM inference engine (Python + CUDA + Triton) implementing an
-enterprise-grade optimization stack. This is not a stripped-down vLLM clone —
-it is a **teaching project where every optimization answers "why is it faster,
-how much faster, and how do we know it's still correct"**:
+A lightweight LLM inference engine rewritten from [nano-vllm](https://github.com/GeeeekExplorer/nano-vllm): ~3900 lines of Python / CUDA / Triton covering PagedAttention, Prefix Caching, Chunked Prefill, FP8 KV Cache, CUDA Graph, tensor parallelism, hand-written CUDA kernels, and an async streaming engine.
 
-- **Measured**: every optimization ships with real benchmarks (RTX 5090 / 4080 Super) and reproducible commands
-- **Deep**: [docs/06](docs/06-debugging-stories.md) walks through two real bugs where *all metrics looked perfect but the output was garbage* — and how they were hunted down
-- **Guarded**: 23 tests; every optimization has a parity assertion, so performance gains never silently break correctness
+What sets this project apart: every optimization ships with **real measurement data** (RTX 5090 / 4080 Super), **root-cause analysis**, and **correctness tests** — all reproducible on your own machine.
 
 vLLM-style API: `LLM(model).generate(prompts, SamplingParams(...))`
 
-## Headline Numbers
+## Benchmarks
 
-| Scenario | Metric | Value |
-|---|---|---|
-| Low latency (8 concurrent) | TPOT | **3.9ms** (eager: 36.3ms, **9.3×**) |
-| High throughput (256 concurrent) | Output throughput | **2626 tok/s** (single 4080S) |
-| Prefix cache @ 90% hit | TTFT | **-67%**, throughput +78% |
-| FP8 KV cache | Capacity | **2×** (61→123 concurrent sequences) |
+| Optimization | Metric | Value | Details |
+|---|---|---|---|
+| CUDA Graph | Decode TPOT (8 concurrent) | 36.30 → **3.90 ms** (9.3×) | [docs/01](docs/01-cuda-graph.md) |
+| Prefix Caching | TTFT (90% hit rate) | **-67%**, throughput +78% | [docs/02](docs/02-prefix-caching.md) |
+| Chunked Prefill | Mixed-load TPOT P99 | unbounded spikes → bounded | [docs/03](docs/03-chunked-prefill.md) |
+| FP8 KV Cache | Capacity (4096 ctx) | 61 → **123 seqs** (2×) | [docs/04](docs/04-fp8-kv-cache.md) |
+| Fused Add+RMSNorm | Op bandwidth | **3-4×** vs eager | [docs/05](docs/05-cuda-kernels.md) |
+| End-to-end | Output throughput (256 conc., 4080S) | **2626 tok/s** | [docs/07](docs/07-benchmarks-5090.md) |
 
-> Environment and repro commands: [docs/07](docs/07-benchmarks-5090.md)
-
-## Code Map (readable in 3 days)
-
-```
-entry   llm.py ───────────────────────────────────── ~50 lines
-          │
-sched ★ engine/scheduler.py ──────────────────────── 260 lines   decode-first + chunked budget
-          │
-exec  ★ engine/model_runner.py ───────────────────── 450 lines   CUDA Graph / inputs / sampling
-          │
-ops   ★ layers/attention.py ──────────────────────── 310 lines   PagedAttn / FP8 / Triton
-          │        layers/linear.py · layernorm.py · rotary_embedding.py · sampler.py
-          │
-kernels nano_vllm/kernels/*.cu ───────────────────── ~200 lines   fused rmsnorm / inplace rope
-          │
-core    engine/block_manager.py ──────────────────── 270 lines ★ prefix caching
-        engine/sequence.py · utils/context.py · engine/async_llm_engine.py
-```
-
-3-day reading plan and global design patterns → [docs/00-architecture.md](docs/00-architecture.md)
+Environment: RTX 5090 32GB (torch 2.13+cu130) / RTX 4080 Super 32GB, Qwen3-0.6B (BF16).
+Reproduction commands in [docs/07](docs/07-benchmarks-5090.md).
 
 ## Quick Start
 
 ```bash
-pip install -e .            # compiles CUDA kernels (falls back to torch.compile without nvcc)
+pip install -e .
+# Skips CUDA kernel compilation without a toolkit; falls back to torch.compile at runtime
 ```
 
 ```python
@@ -79,51 +57,72 @@ curl http://localhost:8000/v1/completions -H "Content-Type: application/json" \
     -d '{"prompt": "Hello", "max_tokens": 64, "stream": true}'
 ```
 
-## ⚡ Optimization Series — *8 battles, from 36ms to 3.9ms*
-
-| # | Battle | Gain |
-|---|------|------|
-| 01 | [The CPU is feeding, the GPU is starving](docs/01-cuda-graph.md) · CUDA Graph | TPOT 36.30 → 3.90ms (**9.3×**) |
-| 02 | [Why compute the same tokens twice?](docs/02-prefix-caching.md) · Prefix Caching | TTFT **-67%** @ 90% hit |
-| 03 | [One long request hijacks the whole batch](docs/03-chunked-prefill.md) · Chunked Prefill | Bounded TPOT P99 |
-| 04 | [Half the price, twice the capacity, one-sixth the speed](docs/04-fp8-kv-cache.md) · FP8 KV | **2×** capacity (decision framework) |
-| 05 | [RMSNorm's memory bill](docs/05-cuda-kernels.md) · CUDA Kernels | Op bandwidth **3-4×** |
-| 06 ⭐ | [All metrics green, output garbage](docs/06-debugging-stories.md) · Debug war stories | Locating invisible bugs |
-| 07 | [Where do the numbers come from](docs/07-benchmarks-5090.md) · Benchmarks | 3-level measurement |
-| 08 | [The last mile of a token](docs/08-async-engine.md) · Async Engine | 3 streaming details |
-
-## Profiling Path (L0→L3)
-
-Optimization is not guesswork — it's a reproducible verification chain:
+## Architecture & Reading Path
 
 ```
-L0 Correct?   pytest tests/                parity assertions (23; GPU ones tagged -m gpu)
-L1 How fast?  bench.py 1   service-level   TTFT/TPOT/TPS/QPS
-L2 Memory     bench.py 2   footprint/KV    capacity probe (FP8 vs FP16)
-L3 Kernel     bench.py 3   profiler/bw     pin down the exact kernel
+entry   llm.py ───────────────────────────────────── ~50 lines
+          │
+sched ★ engine/scheduler.py ──────────────────────── 260 lines   decode-first + chunked budget
+          │
+exec  ★ engine/model_runner.py ───────────────────── 450 lines   CUDA Graph / inputs / sampling
+          │
+ops   ★ layers/attention.py ──────────────────────── 310 lines   PagedAttention / FP8 / Triton
+          │        layers/linear.py · layernorm.py · rotary_embedding.py · sampler.py
+          │
+kernels nano_vllm/kernels/*.cu ───────────────────── ~200 lines   fused rmsnorm / inplace rope
+          │
+core    engine/block_manager.py ──────────────────── 270 lines ★ prefix caching
+        engine/sequence.py · utils/context.py · engine/async_llm_engine.py
+```
+
+The 3-day reading plan and global design patterns: [docs/00-architecture.md](docs/00-architecture.md).
+
+## Documentation
+
+| Ch | Document | Content |
+|---|------|------|
+| 00 | [Architecture: modules and reading path](docs/00-architecture.md) | Data flow, dependencies, reading order |
+| 01 | [CUDA Graph: eliminating decode kernel launch overhead](docs/01-cuda-graph.md) | Static capture/replay, memory cost |
+| 02 | [Prefix Caching: content-addressed KV reuse](docs/02-prefix-caching.md) | Chained hashing, ref-count sharing |
+| 03 | [Chunked Prefill: latency control under mixed load](docs/03-chunked-prefill.md) | Decode-first scheduling, budgeted chunks |
+| 04 | [FP8 KV Cache: capacity vs throughput trade-off](docs/04-fp8-kv-cache.md) | Triton quantized store, when to enable |
+| 05 | [CUDA Kernel: operator fusion and memory traffic](docs/05-cuda-kernels.md) | Fused Add+RMSNorm, Inplace RoPE |
+| 06 | [Debugging: locating two silent bugs](docs/06-debugging-stories.md) | Root-cause analysis with green metrics |
+| 07 | [Performance measurement: design and data](docs/07-benchmarks-5090.md) | 3-level benchmarking methodology |
+| 08 | [Async engine: cancellation and incremental decoding](docs/08-async-engine.md) | Background-thread engine, UTF-8 handling |
+
+## Profiling
+
+```
+L0 Correctness  pytest tests/                parity assertions
+L1 Service      bench.py 1                   TTFT / TPOT / P99 / TPS / QPS
+L2 Memory       bench.py 2                   footprint / KV capacity probe
+L3 Kernel       bench.py 3                   torch.profiler / bandwidth / nsys
 ```
 
 ```bash
-python -m benchmarks.bench 1 --model /path/to/model --scenarios mixed   # exposes P99
-python -m benchmarks.bench 2 --model /path/to/model                     # KV capacity probe
-python -m benchmarks.bench 3 --tool bandwidth                           # kernel shootout
+python -m benchmarks.bench 1 --model /path/to/model --scenarios mixed
+python -m benchmarks.bench 2 --model /path/to/model
+python -m benchmarks.bench 3 --tool bandwidth
 ```
+
+Methodology and result interpretation: [docs/07](docs/07-benchmarks-5090.md).
 
 ## Tests
 
 ```bash
-pytest tests/ -m "not gpu"   # CPU-only (scheduling / caching / detokenization)
-pytest tests/                # full (CUDA Graph parity / kernel parity)
+pytest tests/ -m "not gpu"   # CPU-only: scheduling / caching / decoding logic
+pytest tests/                # full: CUDA Graph parity / kernel parity
 ```
 
-Every test file header names **the bug it guards against** — tests as documentation.
+Each test file header documents the regression it guards against.
 
 ## Roadmap
 
-- [ ] FlashInfer-backed FP8 decode (verified locally: FP8 KV decode runs and beats FP16)
-- [ ] ZMQ-based multi-process engine (mirroring vLLM V1 EngineCore)
-- [ ] Speculative Decoding (N-gram proposer)
-- [ ] Model registry (LLaMA / Mistral)
+- FlashInfer-backed FP8 decode (verified locally: runs and outperforms FP16)
+- ZMQ-based multi-process engine (mirroring vLLM V1 EngineCore)
+- Speculative Decoding (N-gram proposer)
+- Model registry (LLaMA / Mistral)
 
 ## Acknowledgements
 

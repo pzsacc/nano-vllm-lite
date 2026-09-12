@@ -1,8 +1,8 @@
-# 05 · RMSNorm 的账单：每个字节都要过内存
+# 05 · CUDA Kernel：算子融合与访存削减
 
 > **Fused Add+RMSNorm + Inplace RoPE · 算子带宽 3-4×**
 > 核心代码 `nano_vllm/kernels/` · 测试 `tests/test_kernel_parity.py`
-> [战役目录](README.md) · 上一篇 [04 · 一半的价格，两倍的容量](04-fp8-kv-cache.md)
+> [文档目录](README.md) · 上一篇 [04 · FP8 KV Cache：容量与吞吐的权衡分析](04-fp8-kv-cache.md)
 
 ### 瓶颈现象
 
@@ -129,4 +129,4 @@ __global__ void inplace_rotary_kernel(float* qk, const float* cos, const float* 
 
 ---
 
-**下一战**：快是快了，但你怎么知道它是对的？——两个'指标全绿、输出全错'的真实 bug。[06 · 指标全绿，输出全错](06-debugging-stories.md)
+**下一篇**：[正确性调试：两个隐性 Bug 的定位过程](06-debugging-stories.md)

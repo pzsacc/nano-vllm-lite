@@ -1,8 +1,8 @@
-# 03 · 一个长请求，劫持了整个批次
+# 03 · Chunked Prefill：混合负载下的延迟控制
 
 > **Chunked Prefill · TPOT P99 从无界尖刺到有界可控**
 > 核心代码 `engine/scheduler.py` · 测试 `tests/test_chunked_prefill.py`
-> [战役目录](README.md) · 上一篇 [02 · 相同的 token，凭什么算两遍？](02-prefix-caching.md)
+> [文档目录](README.md) · 上一篇 [02 · Prefix Caching：基于内容寻址的 KV Cache 复用](02-prefix-caching.md)
 
 ### 瓶颈现象
 
@@ -101,4 +101,4 @@ def _schedule_chunked(self):
 
 ---
 
-**下一战**：延迟与调度的账都算清了，接下来是显存——KV cache 翻倍的秘密和它的真实价格。[04 · 一半的价格，两倍的容量，六分之一的速度](04-fp8-kv-cache.md)
+**下一篇**：[FP8 KV Cache：容量与吞吐的权衡分析](04-fp8-kv-cache.md)

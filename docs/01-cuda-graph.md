@@ -1,8 +1,8 @@
-# 01 · CPU 在喂饭，GPU 在挨饿
+# 01 · CUDA Graph：消除 Decode 阶段的 Kernel 启动开销
 
 > **CUDA Graph · TPOT 36.30ms → 3.90ms（9.3×）**
 > 核心代码 `engine/model_runner.py` · 测试 `tests/test_cudagraph_parity.py`
-> [战役目录](README.md) · 上一篇 [00 · 先看地图](00-architecture.md)
+> [文档目录](README.md) · 上一篇 [00 · 架构总览：模块分层与读码路径](00-architecture.md)
 
 ### 瓶颈现象 (关闭 CUDA Graph)
 
@@ -97,4 +97,4 @@ def run_model(self, has_prefill):
 
 ---
 
-**下一战**：decode 快了，但每个新请求都在重算别人算过的前缀——[02 · 相同的 token，凭什么算两遍？](02-prefix-caching.md)
+**下一篇**：[Prefix Caching：基于内容寻址的 KV Cache 复用](02-prefix-caching.md)

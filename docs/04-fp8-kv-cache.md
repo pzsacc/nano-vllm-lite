@@ -1,8 +1,8 @@
-# 04 · 一半的价格，两倍的容量，六分之一的速度
+# 04 · FP8 KV Cache：容量与吞吐的权衡分析
 
 > **FP8 KV Cache · 容量 61 → 123 seqs（decode 0.15×，附何时值得的决策框架）**
 > 核心代码 `layers/attention.py` · 测试 `tests/test_cudagraph_parity.py`
-> [战役目录](README.md) · 上一篇 [03 · 一个长请求，劫持了整个批次](03-chunked-prefill.md)
+> [文档目录](README.md) · 上一篇 [03 · Chunked Prefill：混合负载下的延迟控制](03-chunked-prefill.md)
 
 ### 瓶颈现象
 
@@ -100,4 +100,4 @@ k, v = self.k_cache.to(q.dtype), self.v_cache.to(q.dtype)  # 整个 cache dequan
 
 ---
 
-**下一战**：容量到手，回头打磨算子本身——[05 · RMSNorm 的账单：每个字节都要过内存](05-cuda-kernels.md)
+**下一篇**：[CUDA Kernel：算子融合与访存削减](05-cuda-kernels.md)

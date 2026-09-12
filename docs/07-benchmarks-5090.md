@@ -1,8 +1,8 @@
-# 07 · 数字从哪来
+# 07 · 性能测量：基准测试设计与实测数据
 
 > **三层压测体系 + 测量避坑三则 + 5090 实测**
 > 核心代码 `benchmarks/`（统一入口 `python -m benchmarks.bench {1|2|3}`）
-> [战役目录](README.md) · 上一篇 [06 · 指标全绿，输出全错](06-debugging-stories.md)
+> [文档目录](README.md) · 上一篇 [06 · 正确性调试：两个隐性 Bug 的定位过程](06-debugging-stories.md)
 
 ## 三层压测体系
 
@@ -94,4 +94,4 @@ python -m benchmarks.bench 3 --tool profiler --model /path/to/Qwen3-0.6B
 
 ---
 
-**终战**：引擎够快了，最后把 token 平稳送到用户手里——[08 · token 的最后一公里](08-async-engine.md)
+**下一篇**：[08 · 异步流式引擎：请求取消与增量解码](08-async-engine.md)

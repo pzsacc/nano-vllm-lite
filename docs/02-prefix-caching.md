@@ -1,8 +1,8 @@
-# 02 · 相同的 token，凭什么算两遍？
+# 02 · Prefix Caching：基于内容寻址的 KV Cache 复用
 
 > **Prefix Caching · 90% 命中时 TTFT -67%，吞吐 +78%**
 > 核心代码 `engine/block_manager.py` · 测试 `tests/test_prefix_cache.py`
-> [战役目录](README.md) · 上一篇 [01 · CPU 在喂饭，GPU 在挨饿](01-cuda-graph.md)
+> [文档目录](README.md) · 上一篇 [01 · CUDA Graph：消除 Decode 阶段的 Kernel 启动开销](01-cuda-graph.md)
 
 ### 瓶颈现象
 
@@ -82,4 +82,4 @@ def deallocate(self, seq):
 
 ---
 
-**下一战**：延迟稳了，但一个 2048-token 的长请求正在逼近整个批次——[03 · 一个长请求，劫持了整个批次](03-chunked-prefill.md)
+**下一篇**：[Chunked Prefill：混合负载下的延迟控制](03-chunked-prefill.md)

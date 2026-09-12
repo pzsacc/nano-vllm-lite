@@ -1,8 +1,8 @@
-# 08 · token 的最后一公里
+# 08 · 异步流式引擎：请求取消与增量解码
 
 > **Async 引擎 · 取消传播 / UTF-8 完整性 / loop 陷阱**
 > 核心代码 `engine/async_llm_engine.py` · 测试 `tests/test_detokenizer.py`
-> [战役目录](README.md) · 上一篇 [07 · 数字从哪来](07-benchmarks-5090.md)
+> [文档目录](README.md) · 上一篇 [07 · 性能测量：基准测试设计与实测数据](07-benchmarks-5090.md)
 
 ## 架构
 
@@ -104,4 +104,4 @@ Python 3.12 起在无运行 loop 的上下文里调用会告警/报错。正确�
 
 ---
 
-**系列完**。回到 [战役目录](README.md)，或从 [00 · 先看地图](00-architecture.md) 再走一遍。
+**系列完**。返回 [文档目录](README.md)。

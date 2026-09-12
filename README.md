@@ -5,60 +5,40 @@
 <h1 align="center">nano-vllm-lite</h1>
 
 <p align="center">
-  <b>从零手写的 LLM 推理引擎：每个优化都有实测数据、踩坑复盘与正确性测试</b><br>
-  A from-scratch LLM inference engine — every optimization backed by real benchmarks, war stories, and parity tests.
+  <b>轻量级 LLM 推理引擎：约 3900 行实现核心优化栈，每项优化附实测数据与正确性测试</b>
 </p>
 
 <p align="center">
-  <a href="README.en.md">English</a> · <a href="docs/README.md">优化系列 · 八场战役</a> · <a href="#-优化系列">战役列表</a> · <a href="README.en.md#-optimization-series">Docs</a>
+  <a href="README.en.md">English</a> · <a href="docs/README.md">技术文档</a> · <a href="#性能指标">性能指标</a>
 </p>
 
-## 这是什么
+## 项目简介
 
-一个 ~3900 行的 LLM 推理引擎（Python + CUDA + Triton），实现企业级推理优化栈。
-它不是 vLLM 的精简复制，而是**每个优化都可以追问"为什么快、快多少、错在哪"的教学项目**：
+基于 [nano-vllm](https://github.com/GeeeekExplorer/nano-vllm) 重写的轻量级 LLM 推理引擎，约 3900 行 Python / CUDA / Triton，覆盖 PagedAttention、Prefix Caching、Chunked Prefill、FP8 KV Cache、CUDA Graph、张量并行、自研 CUDA Kernel 与异步流式引擎。
 
-- **有数据**：每个优化附实测 benchmark（RTX 5090 / 4080 Super），附可复现命令
-- **有深度**：[docs/06](docs/06-debugging-stories.md) 复盘两个真实 bug——所有指标正常但输出是错的，如何定位
-- **有兜底**：23 个测试，每个优化都有 parity 断言，防止"性能提升，正确性崩塌"
+与同类学习项目的差异：每项优化均附**实机测量数据**（RTX 5090 / 4080 Super）、**完整的根因分析**与**正确性测试**，所有结论可在本地复现。
 
-兼容 vLLM 风格 API：`LLM(model).generate(prompts, SamplingParams(...))`
+API 兼容 vLLM 风格：`LLM(model).generate(prompts, SamplingParams(...))`
 
-## 核心指标
+## 性能指标
 
-| 场景 | 指标 | 数值 |
-|---|---|---|
-| 低时延（8 并发） | TPOT | **3.9ms**（eager 36.3ms，**9.3×**） |
-| 高吞吐（256 并发） | 输出吞吐 | **2626 tok/s**（单卡 4080S） |
-| Prefix 90% 命中 | TTFT | **-67%**，吞吐 +78% |
-| FP8 KV | 容量 | **2×**（61→123 并发序列） |
+| 优化项 | 指标 | 数值 | 明细 |
+|---|---|---|---|
+| CUDA Graph | Decode TPOT（8 并发） | 36.30 → **3.90 ms**（9.3×） | [docs/01](docs/01-cuda-graph.md) |
+| Prefix Caching | TTFT（90% 命中） | **-67%**，吞吐 +78% | [docs/02](docs/02-prefix-caching.md) |
+| Chunked Prefill | 混合负载 TPOT P99 | 无界尖刺 → 有界可控 | [docs/03](docs/03-chunked-prefill.md) |
+| FP8 KV Cache | 并发容量（4096 上下文） | 61 → **123 seqs**（2×） | [docs/04](docs/04-fp8-kv-cache.md) |
+| Fused Add+RMSNorm | 算子带宽 | **3-4×** vs eager | [docs/05](docs/05-cuda-kernels.md) |
+| 整机吞吐 | 256 并发输出吞吐（4080S） | **2626 tok/s** | [docs/07](docs/07-benchmarks-5090.md) |
 
-> 实测环境与复现命令见 [docs/07](docs/07-benchmarks-5090.md)
-
-## 核心代码地图（3 天读完）
-
-```
-入口    llm.py ───────────────────────────────────── ~50 行
-          │
-调度 ★  engine/scheduler.py ──────────────────────── 260 行   decode优先 + chunked预算
-          │
-执行 ★  engine/model_runner.py ───────────────────── 450 行   CUDA Graph / 输入准备 / 采样
-          │
-算子 ★  layers/attention.py ──────────────────────── 310 行   PagedAttn / FP8 / Triton
-          │        layers/linear.py · layernorm.py · rotary_embedding.py · sampler.py
-          │
-内核    nano_vllm/kernels/*.cu ───────────────────── ~200 行   fused rmsnorm / inplace rope
-          │
-基础    engine/block_manager.py ──────────────────── 270 行 ★ prefix caching
-        engine/sequence.py · utils/context.py · engine/async_llm_engine.py
-```
-
-3 天读码计划与全局设计模式 → [docs/00-architecture.md](docs/00-architecture.md)
+测试环境：RTX 5090 32GB（torch 2.13+cu130）/ RTX 4080 Super 32GB，Qwen3-0.6B（BF16）。
+复现命令见 [docs/07](docs/07-benchmarks-5090.md)。
 
 ## 快速开始
 
 ```bash
-pip install -e .            # 含 CUDA kernel 编译 (无 toolkit 时自动降级 torch.compile)
+pip install -e .
+# 无 CUDA toolkit 时自动跳过 kernel 编译，运行时降级为 torch.compile 实现
 ```
 
 ```python
@@ -77,51 +57,72 @@ curl http://localhost:8000/v1/completions -H "Content-Type: application/json" \
     -d '{"prompt": "Hello", "max_tokens": 64, "stream": true}'
 ```
 
-## ⚡ 优化系列 · 从 36ms 到 3.9ms
-
-| 章 | 战役 | 收益 |
-|---|------|------|
-| 01 | [CPU 在喂饭，GPU 在挨饿](docs/01-cuda-graph.md) · CUDA Graph | TPOT 36.30 → 3.90ms（**9.3×**） |
-| 02 | [相同的 token，凭什么算两遍？](docs/02-prefix-caching.md) · Prefix Caching | 命中 90% 时 TTFT **-67%** |
-| 03 | [一个长请求，劫持了整个批次](docs/03-chunked-prefill.md) · Chunked Prefill | 混合负载 TPOT P99 有界化 |
-| 04 | [一半的价格，两倍的容量，六分之一的速度](docs/04-fp8-kv-cache.md) · FP8 KV | 容量 **2×**（附决策框架） |
-| 05 | [RMSNorm 的账单](docs/05-cuda-kernels.md) · CUDA Kernels | 算子带宽 **3-4×** |
-| 06 ⭐ | [指标全绿，输出全错](docs/06-debugging-stories.md) · Debug 复盘 | 两个真实 bug 的定位方法论 |
-| 07 | [数字从哪来](docs/07-benchmarks-5090.md) · Benchmark | 三层压测体系 |
-| 08 | [token 的最后一公里](docs/08-async-engine.md) · Async 引擎 | 流式输出 3 个工程细节 |
-
-## Profiling 路径（L0→L3）
-
-优化不是玄学，是一条可复现的验证链：
+## 架构与读码路径
 
 ```
-L0 对不对   pytest tests/                正确性断言 (23 个, GPU 用例 -m gpu 分流)
-L1 多快     bench.py 1   场景压测          TTFT/TPOT/TPS/QPS
-L2 显存     bench.py 2   组件占比/容量     KV 探针 (FP8 vs FP16)
-L3 算子     bench.py 3   profiler/带宽     定位到具体 kernel
+入口    llm.py ───────────────────────────────────── ~50 行
+          │
+调度 ★  engine/scheduler.py ──────────────────────── 260 行   decode 优先 + chunked 预算
+          │
+执行 ★  engine/model_runner.py ───────────────────── 450 行   CUDA Graph / 输入准备 / 采样
+          │
+算子 ★  layers/attention.py ──────────────────────── 310 行   PagedAttention / FP8 / Triton
+          │        layers/linear.py · layernorm.py · rotary_embedding.py · sampler.py
+          │
+内核    nano_vllm/kernels/*.cu ───────────────────── ~200 行   fused rmsnorm / inplace rope
+          │
+基础    engine/block_manager.py ──────────────────── 270 行 ★ prefix caching
+        engine/sequence.py · utils/context.py · engine/async_llm_engine.py
+```
+
+3 天读码顺序与全局设计模式见 [docs/00-architecture.md](docs/00-architecture.md)。
+
+## 技术文档
+
+| 章 | 文档 | 内容 |
+|---|------|------|
+| 00 | [架构总览：模块分层与读码路径](docs/00-architecture.md) | 数据流图、模块依赖、读码顺序 |
+| 01 | [CUDA Graph：消除 Decode 阶段的 Kernel 启动开销](docs/01-cuda-graph.md) | 静态捕获/回放、显存代价 |
+| 02 | [Prefix Caching：基于内容寻址的 KV Cache 复用](docs/02-prefix-caching.md) | 链式哈希、引用计数共享 |
+| 03 | [Chunked Prefill：混合负载下的延迟控制](docs/03-chunked-prefill.md) | decode 优先调度、预算分块 |
+| 04 | [FP8 KV Cache：容量与吞吐的权衡分析](docs/04-fp8-kv-cache.md) | Triton 量化写入、适用场景决策 |
+| 05 | [CUDA Kernel：算子融合与访存削减](docs/05-cuda-kernels.md) | 融合 Add+RMSNorm、Inplace RoPE |
+| 06 | [正确性调试：两个隐性 Bug 的定位过程](docs/06-debugging-stories.md) | 指标正常但输出错误的根因分析 |
+| 07 | [性能测量：基准测试设计与实测数据](docs/07-benchmarks-5090.md) | 三层压测体系、测量方法 |
+| 08 | [异步流式引擎：请求取消与增量解码](docs/08-async-engine.md) | 后台线程引擎、UTF-8 完整性 |
+
+## 性能分析方法
+
+```
+L0 正确性    pytest tests/                断言优化后行为一致
+L1 服务压测  bench.py 1                   TTFT / TPOT / P99 / TPS / QPS
+L2 显存分析  bench.py 2                   组件占比 / KV 容量探针
+L3 算子剖析  bench.py 3                   torch.profiler / 带宽对拍 / nsys
 ```
 
 ```bash
-python -m benchmarks.bench 1 --model /path/to/model --scenarios mixed   # 暴露 P99
-python -m benchmarks.bench 2 --model /path/to/model                     # KV 容量探针
-python -m benchmarks.bench 3 --tool bandwidth                           # 算子对拍
+python -m benchmarks.bench 1 --model /path/to/model --scenarios mixed
+python -m benchmarks.bench 2 --model /path/to/model
+python -m benchmarks.bench 3 --tool bandwidth
 ```
+
+分层定位逻辑与结果解读见 [docs/07](docs/07-benchmarks-5090.md)。
 
 ## 测试
 
 ```bash
-pytest tests/ -m "not gpu"   # CPU 可跑 (调度/缓存/解码逻辑)
-pytest tests/                # 全量 (含 CUDA Graph parity / kernel parity)
+pytest tests/ -m "not gpu"   # CPU 可运行：调度 / 缓存 / 解码逻辑
+pytest tests/                # 全量：含 CUDA Graph parity / kernel parity
 ```
 
-每个测试文件头部标注"防的是哪个 bug"——测试即文档。
+每个测试文件头部说明其防护的回归点。
 
 ## Roadmap
 
-- [ ] FP8 decode 换 FlashInfer（已在本机验证 FP8 KV decode 跑通且快于 FP16）
-- [ ] ZMQ 进程化引擎（对照 vLLM V1 EngineCore 架构）
-- [ ] Speculative Decoding（N-gram proposer）
-- [ ] 模型注册机制（LLaMA / Mistral）
+- FP8 decode 接入 FlashInfer（本地已验证 FP8 KV decode 可运行且快于 FP16）
+- ZMQ 进程化引擎（参照 vLLM V1 EngineCore 架构）
+- Speculative Decoding（N-gram proposer）
+- 模型注册机制（LLaMA / Mistral）
 
 ## 致谢
 

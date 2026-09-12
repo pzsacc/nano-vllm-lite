@@ -1,7 +1,7 @@
-# 06 · 指标全绿，输出全错
+# 06 · 正确性调试：两个隐性 Bug 的定位过程
 
 > **两个真实 Bug 的定位全过程——本系列技术含量最高的一章**
-> [战役目录](README.md) · 上一篇 [05 · RMSNorm 的账单](05-cuda-kernels.md)
+> [文档目录](README.md) · 上一篇 [05 · CUDA Kernel：算子融合与访存削减](05-cuda-kernels.md)
 
 ## Bug 1: 输出"慢一拍" — context_len 差一
 
@@ -123,4 +123,4 @@ CUDA Graph capture 的原理是劫持 **当前 stream** 上的所有 launch。
 
 ---
 
-**下一战**：修好了，怎么证明没修坏？数字必须先可信——[07 · 数字从哪来](07-benchmarks-5090.md)
+**下一篇**：[性能测量：基准测试设计与实测数据](07-benchmarks-5090.md)
