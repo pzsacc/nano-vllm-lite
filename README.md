@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="README.en.md">English</a> · <a href="docs/README.md">优化系列文档</a> · <a href="#-优化系列">优化列表</a> · <a href="README.en.md#-optimization-series">Docs</a>
+  <a href="README.en.md">English</a> · <a href="docs/README.md">优化系列 · 八场战役</a> · <a href="#-优化系列">战役列表</a> · <a href="README.en.md#-optimization-series">Docs</a>
 </p>
 
 ## 这是什么
@@ -77,7 +77,7 @@ curl http://localhost:8000/v1/completions -H "Content-Type: application/json" \
     -d '{"prompt": "Hello", "max_tokens": 64, "stream": true}'
 ```
 
-## ⚡ 优化系列
+## ⚡ 优化系列 · 从 36ms 到 3.9ms
 
 | 章 | 战役 | 收益 |
 |---|------|------|
