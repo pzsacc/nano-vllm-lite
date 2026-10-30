@@ -10,17 +10,19 @@ engine/model_runner.py - GPU 模型执行器
 """
 
 import pickle
+import uuid
+from multiprocessing import Event
+from multiprocessing.shared_memory import SharedMemory
+
 import torch
 import torch.distributed as dist
 from torch import inference_mode
-from multiprocessing.shared_memory import SharedMemory
-from multiprocessing import Event
 
 from nano_vllm.config import Config
 from nano_vllm.engine.sequence import Sequence
-from nano_vllm.models.qwen3 import Qwen3ForCausalLM
 from nano_vllm.layers.sampler import Sampler
-from nano_vllm.utils.context import set_context, reset_context
+from nano_vllm.models import get_model_class
+from nano_vllm.utils.context import reset_context, set_context
 from nano_vllm.utils.loader import load_model
 
 
@@ -39,10 +41,18 @@ class ModelRunner:
         events: 用于 TP 同步的 Event 列表（仅 rank 0 使用）
     """
 
-    def __init__(self, config: Config, rank: int = 0, events: list[Event] = None):
+    def __init__(
+        self,
+        config: Config,
+        rank: int = 0,
+        events: list[Event] | None = None,
+        shm_name: str | None = None,
+        nccl_port: int = 2333,
+    ):
         # 初始化分布式环境
-        dist.init_process_group("nccl", f"tcp://localhost:2333",
-                                world_size=config.tensor_parallel_size, rank=rank)
+        dist.init_process_group(
+            "nccl", f"tcp://localhost:{nccl_port}", world_size=config.tensor_parallel_size, rank=rank
+        )
         torch.cuda.set_device(rank)
         self.rank = rank
         self.config = config
@@ -55,7 +65,8 @@ class ModelRunner:
         prev_dtype = torch.get_default_dtype()
         torch.set_default_device("cuda")
         torch.set_default_dtype(config.hf_config.torch_dtype)
-        self.model = Qwen3ForCausalLM(config.hf_config)
+        model_cls = get_model_class(config.hf_config.model_type)
+        self.model = model_cls(config.hf_config)
         load_model(self.model, config.model)
         self.sampler = Sampler()
         torch.set_default_device(prev_device)
@@ -70,10 +81,13 @@ class ModelRunner:
         # TP 通信设置
         torch.set_default_dtype(torch.float32)
         torch.set_default_device("cpu")
+        if shm_name is None:
+            shm_name = f"nanovllm_{uuid.uuid4().hex[:12]}"
+        self._shm_name = shm_name
         if rank == 0:
-            self.shm = SharedMemory("nanovllm", create=True, size=2**20)
+            self.shm = SharedMemory(shm_name, create=True, size=2**20)
         else:
-            self.shm = SharedMemory("nanovllm", create=False)
+            self.shm = SharedMemory(shm_name, create=False)
             self.loop()
 
     def exit(self):
@@ -110,7 +124,7 @@ class ModelRunner:
     def write_shm(self, method: str, args: tuple):
         """向共享内存写入方法名和参数，并通知所有 worker"""
         data = pickle.dumps((method, args))
-        self.shm.buf[:len(data)] = data
+        self.shm.buf[: len(data)] = data
         for event in self.events:
             event.set()
 
@@ -161,7 +175,6 @@ class ModelRunner:
 
         # 计算可分配的 block 数量
         total_mem = torch.cuda.get_device_properties(0).total_memory
-        used_mem = torch.cuda.memory_allocated()
         peak_mem = torch.cuda.max_memory_allocated()
         available = total_mem * self.config.gpu_memory_utilization - peak_mem
         self.config.num_kvcache_blocks = int(available) // block_bytes
@@ -171,12 +184,19 @@ class ModelRunner:
 
         # 分配全局 KV cache tensor: [2, layers, blocks, block_size, heads, head_dim]
         kv_cache = torch.zeros(
-            2, num_layers, self.config.num_kvcache_blocks, block_size, num_kv_heads, head_dim,
-            dtype=cache_dtype, device="cuda"
+            2,
+            num_layers,
+            self.config.num_kvcache_blocks,
+            block_size,
+            num_kv_heads,
+            head_dim,
+            dtype=cache_dtype,
+            device="cuda",
         )
 
         # 将 KV cache 切片分配给每个 Attention 模块
         from nano_vllm.layers.attention import Attention
+
         layer_idx = 0
         for module in self.model.modules():
             if isinstance(module, Attention):
@@ -196,10 +216,7 @@ class ModelRunner:
             [batch_size, max_blocks] 的 int32 CUDA tensor，短序列用 -1 填充
         """
         max_blocks = max(len(seq.block_table) for seq in seqs)
-        block_tables = [
-            seq.block_table + [-1] * (max_blocks - len(seq.block_table))
-            for seq in seqs
-        ]
+        block_tables = [seq.block_table + [-1] * (max_blocks - len(seq.block_table)) for seq in seqs]
         return torch.tensor(block_tables, dtype=torch.int32, device="cuda")
 
     def prepare_prefill(self, seqs: list[Sequence]):
@@ -335,7 +352,7 @@ class ModelRunner:
         gv["slot_mapping"][:batch_size].copy_(self.decode_slot_mapping)
         gv["context_lens"][:batch_size].copy_(self.decode_context_lens)
         bt = self.decode_block_tables
-        gv["block_tables"][:batch_size, :bt.shape[1]].copy_(bt)
+        gv["block_tables"][:batch_size, : bt.shape[1]].copy_(bt)
 
         # 更新全局 context 指向 graph 的 static tensor（保持地址不变）
         set_context(
@@ -400,7 +417,9 @@ class ModelRunner:
         self.graph_pool = torch.cuda.graph_pool_handle()
         self.graph_vars = {}
         self.graph_hidden = {}
-        max_blocks_per_seq = (self.config.max_model_len + self.config.kvcache_block_size - 1) // self.config.kvcache_block_size
+        max_blocks_per_seq = (
+            self.config.max_model_len + self.config.kvcache_block_size - 1
+        ) // self.config.kvcache_block_size
 
         # 为每个 batch_size 预分配 static context tensor
         for graph_bs in batch_sizes:
@@ -427,7 +446,7 @@ class ModelRunner:
             )
 
             # Warmup run（让 PyTorch 分配所有中间 buffer）
-            hidden = self.model(self.input_ids, self.positions)
+            self.model(self.input_ids, self.positions)
             reset_context()
 
             # 正式 Capture

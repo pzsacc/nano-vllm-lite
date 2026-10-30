@@ -7,7 +7,6 @@ tests/test_block_manager.py - BlockManager 单元测试
 - 引用计数共享
 """
 
-import pytest
 from nano_vllm.engine.block_manager import BlockManager
 from nano_vllm.engine.sequence import Sequence
 from nano_vllm.sampling_params import SamplingParams
@@ -43,10 +42,8 @@ class TestBlockManager:
     def test_prefix_caching(self):
         """测试前缀缓存复用"""
         shared_prefix = list(range(256))
-        seq1 = Sequence(shared_prefix + list(range(256, 512)),
-                        SamplingParams(temperature=1.0, max_tokens=10))
-        seq2 = Sequence(shared_prefix + list(range(512, 768)),
-                        SamplingParams(temperature=1.0, max_tokens=10))
+        seq1 = Sequence(shared_prefix + list(range(256, 512)), SamplingParams(temperature=1.0, max_tokens=10))
+        seq2 = Sequence(shared_prefix + list(range(512, 768)), SamplingParams(temperature=1.0, max_tokens=10))
 
         self.bm.allocate(seq1, 0)
         # 手动注册 block hash

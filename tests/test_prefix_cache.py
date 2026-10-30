@@ -7,10 +7,11 @@ tests/test_prefix_cache.py - Prefix Caching 正确性测试 (CPU)
 注意: hash_blocks 只注册"已调度填满"的块（与引擎调度路径一致），
 所以测试里先模拟 num_scheduled_tokens 推进再 hash_blocks。
 """
+
 import pytest
 
 from nano_vllm.engine.block_manager import BlockManager
-from nano_vllm.engine.sequence import Sequence, SequenceStatus
+from nano_vllm.engine.sequence import Sequence
 from nano_vllm.sampling_params import SamplingParams
 
 
@@ -33,8 +34,7 @@ def test_hash_chain_prefix_hit(bm):
     _prefill_and_hash(bm, seq1)
     assert len(bm.hash_to_block_id) >= 2
 
-    seq2 = Sequence(list(range(600)) + [99999],
-                    SamplingParams(temperature=1.0, max_tokens=8))
+    seq2 = Sequence(list(range(600)) + [99999], SamplingParams(temperature=1.0, max_tokens=8))
     num_cached = bm.can_allocate(seq2)
     # 600 token = 2 满块 + 不满尾块, 应命中 2 块 = 512 token
     assert num_cached == 2, f"前缀应命中 2 块, 实际 {num_cached}"
@@ -45,8 +45,7 @@ def test_different_prefix_no_false_hit(bm):
     seq1 = Sequence(list(range(600)), SamplingParams(temperature=1.0, max_tokens=8))
     _prefill_and_hash(bm, seq1)
 
-    seq2 = Sequence([7, 7, 7] + list(range(300)),
-                    SamplingParams(temperature=1.0, max_tokens=8))
+    seq2 = Sequence([7, 7, 7] + list(range(300)), SamplingParams(temperature=1.0, max_tokens=8))
     assert bm.can_allocate(seq2) == 0, "不同前缀不应命中缓存"
 
 

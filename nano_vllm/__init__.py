@@ -7,8 +7,8 @@ API 兼容 vLLM 风格的 LLM/SamplingParams 接口。
 """
 
 from nano_vllm.config import Config
-from nano_vllm.sampling_params import SamplingParams
 from nano_vllm.engine.llm_engine import LLMEngine as LLM
+from nano_vllm.sampling_params import SamplingParams
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 __all__ = ["LLM", "Config", "SamplingParams"]

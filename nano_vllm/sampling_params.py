@@ -17,13 +17,12 @@ class SamplingParams:
         max_tokens: 单次请求最大生成 token 数
         ignore_eos: 是否忽略 EOS token 强制生成到 max_tokens
     """
+
     temperature: float = 1.0
     max_tokens: int = 64
     ignore_eos: bool = False
 
     def __post_init__(self):
         """校验参数合法性"""
-        assert self.temperature > 1e-10, (
-            "temperature 必须 > 1e-10，当前不支持 greedy sampling"
-        )
+        assert self.temperature > 1e-10, "temperature 必须 > 1e-10，当前不支持 greedy sampling"
         assert self.max_tokens > 0, "max_tokens 必须为正整数"

@@ -53,8 +53,9 @@ nano-vllm-lite 启发于nano-vllm，是一个轻量级高性能 LLM 推理引擎
 ## 目录结构
 
 ```
-nano_vllm_unified/
-├── setup.py                    # 安装配置 + CUDA 扩展编译
+nano-vllm-lite/
+├── pyproject.toml              # 项目元数据 + 依赖配置
+├── setup.py                    # CUDA 扩展编译
 ├── DEVELOPMENT.md              # 本文档
 ├── nano_vllm/
 │   ├── __init__.py             # 包入口，导出 LLM/Config/SamplingParams
@@ -89,13 +90,20 @@ nano_vllm_unified/
 │       ├── context.py          # 全局推理上下文管理
 │       └── loader.py           # 模型权重加载器
 ├── benchmarks/
-│   ├── bench_throughput.py     # 吞吐量基准测试
-│   └── bench_latency.py       # 延迟基准测试
+│   ├── bench.py               # 统一入口 (bench.py {1|2|3})
+│   ├── level1_service.py      # L1 服务层压测
+│   ├── level2_memory.py       # L2 显存分析
+│   └── level3_profile.py      # L3 算子剖析
 ├── examples/
 │   ├── offline_inference.py    # 离线推理示例
 │   └── streaming_server.py     # OpenAI 兼容 API Server
 └── tests/
-    └── test_block_manager.py   # BlockManager 单元测试
+    ├── test_block_manager.py   # BlockManager 单元测试
+    ├── test_chunked_prefill.py # Chunked Prefill 调度逻辑测试
+    ├── test_prefix_cache.py    # Prefix Caching 正确性测试
+    ├── test_detokenizer.py     # 增量解码 + UTF-8 截断测试
+    ├── test_cudagraph_parity.py # CUDA Graph 输出一致性测试 (GPU)
+    └── test_kernel_parity.py   # CUDA Kernel 数值对拍测试 (GPU)
 ```
 
 ---
@@ -219,8 +227,8 @@ python examples/streaming_server.py --model /path/to/Qwen3-0.6B --port 8000
 ### 运行基准测试
 
 ```bash
-python -m benchmarks.bench_throughput --model /path/to/Qwen3-0.6B
-python -m benchmarks.bench_latency --model /path/to/Qwen3-0.6B
+python -m benchmarks.bench 1 --model /path/to/Qwen3-0.6B
+python -m benchmarks.bench 2 --model /path/to/Qwen3-0.6B
 ```
 
 ---

@@ -11,18 +11,19 @@ API 设计对标 vLLM 的 LLM 类，支持 batch offline inference。
 """
 
 import atexit
+import uuid
 from dataclasses import fields
 from time import perf_counter
 
+import torch.multiprocessing as mp
 from tqdm import tqdm
 from transformers import AutoTokenizer
-import torch.multiprocessing as mp
 
 from nano_vllm.config import Config
-from nano_vllm.sampling_params import SamplingParams
-from nano_vllm.engine.sequence import Sequence
-from nano_vllm.engine.scheduler import Scheduler
 from nano_vllm.engine.model_runner import ModelRunner
+from nano_vllm.engine.scheduler import Scheduler
+from nano_vllm.engine.sequence import Sequence
+from nano_vllm.sampling_params import SamplingParams
 
 
 class LLMEngine:
@@ -43,6 +44,11 @@ class LLMEngine:
         self.config = Config(model=model, **config_kwargs)
         Sequence.block_size = self.config.kvcache_block_size
 
+        # 生成本实例唯一的 shm 名称和 NCCL 端口，避免多实例冲突
+        instance_id = uuid.uuid4().hex[:12]
+        shm_name = f"nanovllm_{instance_id}"
+        nccl_port = kwargs.get("nccl_port", 2333)
+
         # 启动 TP worker 子进程
         self.workers = []
         self.events = []
@@ -53,14 +59,20 @@ class LLMEngine:
                 self.events.append(event)
                 worker = ctx.Process(
                     target=self._worker_fn,
-                    args=(self.config, rank, event),
+                    args=(self.config, rank, event, shm_name, nccl_port),
                     daemon=True,
                 )
                 worker.start()
                 self.workers.append(worker)
 
         # 初始化 rank 0 的 ModelRunner
-        self.model_runner = ModelRunner(self.config, rank=0, events=self.events)
+        self.model_runner = ModelRunner(
+            self.config,
+            rank=0,
+            events=self.events,
+            shm_name=shm_name,
+            nccl_port=nccl_port,
+        )
 
         # 加载 tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(self.config.model)
@@ -72,9 +84,9 @@ class LLMEngine:
         atexit.register(self.exit)
 
     @staticmethod
-    def _worker_fn(config: Config, rank: int, event):
+    def _worker_fn(config: Config, rank: int, event, shm_name: str, nccl_port: int):
         """TP worker 子进程入口函数"""
-        ModelRunner(config, rank=rank, events=event)
+        ModelRunner(config, rank=rank, events=event, shm_name=shm_name, nccl_port=nccl_port)
 
     def exit(self):
         """清理引擎资源"""
@@ -83,7 +95,7 @@ class LLMEngine:
         for worker in self.workers:
             worker.join(timeout=5)
 
-    def add_request(self, prompt, sampling_params: SamplingParams = SamplingParams()):
+    def add_request(self, prompt, sampling_params: SamplingParams | None = None):
         """添加推理请求
 
         Args:
@@ -94,6 +106,8 @@ class LLMEngine:
             token_ids = self.tokenizer.encode(prompt)
         else:
             token_ids = prompt
+        if sampling_params is None:
+            sampling_params = SamplingParams()
         seq = Sequence(token_ids, sampling_params)
         self.scheduler.add(seq)
 

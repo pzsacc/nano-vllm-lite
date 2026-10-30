@@ -8,8 +8,10 @@ kernel 未编译时全部 skip。
 运行: pytest tests/test_kernel_parity.py  (需 GPU + 已编译扩展)
 CI 中跳过: pytest -m "not gpu"
 """
+
 import os
 import sys
+
 import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

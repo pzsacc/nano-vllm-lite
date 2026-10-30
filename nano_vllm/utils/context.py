@@ -7,7 +7,7 @@ utils/context.py - 全局推理上下文管理
 """
 
 from dataclasses import dataclass
-import torch
+
 from torch import Tensor
 
 
@@ -25,6 +25,7 @@ class Context:
         context_lens: decode 阶段每个序列的已缓存 token 数
         block_tables: decode 阶段每个序列的 block table（物理页映射）
     """
+
     is_prefill: bool = False
     cu_seqlens_q: Tensor | None = None
     cu_seqlens_k: Tensor | None = None
@@ -44,9 +45,16 @@ def get_context() -> Context:
     return _CONTEXT
 
 
-def set_context(is_prefill: bool, cu_seqlens_q=None, cu_seqlens_k=None,
-                max_seqlen_q: int = 0, max_seqlen_k: int = 0,
-                slot_mapping=None, context_lens=None, block_tables=None):
+def set_context(
+    is_prefill: bool,
+    cu_seqlens_q=None,
+    cu_seqlens_k=None,
+    max_seqlen_q: int = 0,
+    max_seqlen_k: int = 0,
+    slot_mapping=None,
+    context_lens=None,
+    block_tables=None,
+):
     """设置当前推理步骤的全局上下文
 
     Args:

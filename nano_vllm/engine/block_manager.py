@@ -9,8 +9,9 @@ engine/block_manager.py - 页式 KV Cache 块管理器
 """
 
 from collections import deque
-import xxhash
+
 import numpy as np
+import xxhash
 
 from nano_vllm.engine.sequence import Sequence
 

@@ -11,9 +11,9 @@ TP 通信：
 """
 
 import torch
+import torch.distributed as dist
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.distributed as dist
 
 from nano_vllm.utils.context import get_context
 
@@ -46,7 +46,7 @@ class VocabParallelEmbedding(nn.Module):
 
     def weight_loader(self, param, loaded_weight):
         """加载当前 rank 对应的词表分片"""
-        param.data.copy_(loaded_weight[self.vocab_start_idx:self.vocab_end_idx])
+        param.data.copy_(loaded_weight[self.vocab_start_idx : self.vocab_end_idx])
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """词表并行 embedding 查找

@@ -1,0 +1,62 @@
+[build-system]
+requires = ["setuptools>=64", "wheel", "torch>=2.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nano-vllm-lite"
+version = "0.4.0"
+description = "轻量级高性能 LLM 推理引擎，支持 PagedAttention、FP8 KV Cache、Chunked Prefill"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+authors = [{name = "pzsacc"}]
+keywords = ["llm", "inference", "vllm", "paged-attention", "cuda-graph"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "torch>=2.0",
+    "transformers",
+    "safetensors",
+    "xxhash",
+    "numpy",
+    "tqdm",
+]
+
+[project.optional-dependencies]
+gpu = [
+    "triton>=2.0",
+    "flash-attn>=2.5",
+]
+server = ["fastapi", "uvicorn", "sse-starlette"]
+dev = ["pytest", "ruff"]
+
+[project.urls]
+Homepage = "https://github.com/pzsacc/nano-vllm-lite"
+Repository = "https://github.com/pzsacc/nano-vllm-lite"
+Issues = "https://github.com/pzsacc/nano-vllm-lite/issues"
+
+[tool.setuptools.packages.find]
+include = ["nano_vllm*"]
+exclude = ["tests*", "benchmarks*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["gpu: requires GPU and compiled CUDA kernels"]
+addopts = "--strict-markers -q"
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]

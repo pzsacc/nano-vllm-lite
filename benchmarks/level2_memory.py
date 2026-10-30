@@ -10,16 +10,17 @@ benchmarks/level2_memory.py - L2 显存分析
   教学点: 容量 2× 的推导 —— 池字节相同, dtype 减半 → token 单价减半
   (与 docs/04-fp8-kv-cache.md 的"价值在容量不在速度"呼应)
 """
+
+import argparse
+import json
 import os
 import sys
-import json
-import argparse
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import torch
+
 from nano_vllm import LLM
-from nano_vllm.config import Config
 
 
 def gib(nbytes: int) -> float:
@@ -37,7 +38,6 @@ def memory_footprint(model_path: str, max_model_len: int, fp8: bool):
     engine = LLM(model_path, max_model_len=max_model_len, enable_fp8_kvcache=fp8)
     weights = torch.cuda.memory_allocated() - before
 
-    mr = engine.model_runner
     hf = engine.config.hf_config
     n_blocks = engine.config.num_kvcache_blocks
     block_size = engine.config.kvcache_block_size
@@ -62,8 +62,10 @@ def memory_footprint(model_path: str, max_model_len: int, fp8: bool):
     print("-" * 40)
     print(f"{'合计':<20}{gib(total):>9.2f}G")
 
-    print(f"\nKV 参数: block_size={block_size}, blocks={n_blocks}, "
-          f"每 token {kv_bytes_per_token}B ({'FP8' if fp8 else 'FP16'})")
+    print(
+        f"\nKV 参数: block_size={block_size}, blocks={n_blocks}, "
+        f"每 token {kv_bytes_per_token}B ({'FP8' if fp8 else 'FP16'})"
+    )
     max_concurrent = n_blocks * block_size // max_model_len
     print(f"满 {max_model_len} 上下文最大并发: {max_concurrent} seqs")
 
@@ -98,22 +100,22 @@ def kv_capacity(model_path: str, max_model_len: int):
             "head_dim=hf.head_dim)))"
         )
         import subprocess
-        out = subprocess.run([sys.executable, "-c", code],
-                             capture_output=True, text=True)
+
+        out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
         info = json.loads(out.stdout.strip().splitlines()[-1])
         kv_per_token = info["layers"] * 2 * info["kv_heads"] * info["head_dim"]
         bytes_per_token = kv_per_token * (1 if fp8 else 2)
         pool = info["blocks"] * info["block_size"] * bytes_per_token
         seqs = info["blocks"] * info["block_size"] // max_model_len
-        results[label] = dict(bytes_per_token=bytes_per_token,
-                              pool_gib=gib(pool), max_seqs=seqs)
-        print(f"\n[{label}] blocks={info['blocks']} "
-              f"pool={gib(pool):.1f}GiB 每 token {bytes_per_token}B "
-              f"满长度并发 {seqs} seqs")
+        results[label] = dict(bytes_per_token=bytes_per_token, pool_gib=gib(pool), max_seqs=seqs)
+        print(
+            f"\n[{label}] blocks={info['blocks']} "
+            f"pool={gib(pool):.1f}GiB 每 token {bytes_per_token}B "
+            f"满长度并发 {seqs} seqs"
+        )
 
     r16, r8 = results["FP16"], results["FP8"]
-    print(f"\n容量倍率: {r8['max_seqs'] / r16['max_seqs']:.2f}× "
-          f"(预期 2.0×, 偏差来自 block 取整)")
+    print(f"\n容量倍率: {r8['max_seqs'] / r16['max_seqs']:.2f}× (预期 2.0×, 偏差来自 block 取整)")
     print("教学点: 池字节由 utilization 预算决定, dtype 减半 → 单价减半 → 容量翻倍;")
     print("        但 decode 速度代价要结合 L3 才能看到 (见 docs/04)。")
 
@@ -122,8 +124,7 @@ def main():
     parser = argparse.ArgumentParser(description="L2 显存分析")
     parser.add_argument("--model", required=True)
     parser.add_argument("--max-model-len", type=int, default=4096)
-    parser.add_argument("--mode", choices=["memory_footprint", "kv_capacity", "all"],
-                        default="all")
+    parser.add_argument("--mode", choices=["memory_footprint", "kv_capacity", "all"], default="all")
     parser.add_argument("--fp8", action="store_true", help="footprint 模式用 FP8 KV")
     args = parser.parse_args()
 

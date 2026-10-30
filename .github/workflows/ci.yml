@@ -5,30 +5,40 @@ on:
     branches: [main]
   pull_request:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install ruff
-      - run: ruff check nano_vllm tests benchmarks --select E9,F63,F7,F82
-      - run: ruff format --check nano_vllm tests benchmarks || true
+      - run: pip install ruff==0.7.0
+      - run: ruff check nano_vllm tests benchmarks
+      - run: ruff format --check nano_vllm tests benchmarks
 
   test-cpu:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.12"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.python-version }}
+          cache: pip
       - name: Install (CPU, no CUDA build)
         run: |
           pip install torch --index-url https://download.pytorch.org/whl/cpu
-          pip install -e . --no-build-isolation || pip install -e . --no-deps
-          pip install pytest transformers xxhash safetensors
+          pip install -e ".[dev]" --no-build-isolation || pip install -e . --no-deps
+          pip install transformers xxhash safetensors numpy tqdm
       - name: Run CPU tests
         run: pytest tests/ -m "not gpu" -q
         env:

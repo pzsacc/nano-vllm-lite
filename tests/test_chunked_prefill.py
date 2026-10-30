@@ -7,12 +7,13 @@ tests/test_chunked_prefill.py - Chunked Prefill 调度逻辑测试 (CPU)
 2. prefill 按固定 chunk 预算分块（长 prompt 不阻塞 decode）
 3. abort 后序列不再被调度（资源被释放）
 """
+
 import pytest
 
+from nano_vllm.config import Config
 from nano_vllm.engine.scheduler import Scheduler
 from nano_vllm.engine.sequence import Sequence, SequenceStatus
 from nano_vllm.sampling_params import SamplingParams
-from nano_vllm.config import Config
 
 
 def make_config(**kw) -> Config:
@@ -34,19 +35,19 @@ def make_config(**kw) -> Config:
 @pytest.fixture
 def seq_factory():
     Sequence.block_size = 256
-    counter = {"id": 0}
 
     def _make(num_tokens: int) -> Sequence:
         sp = SamplingParams(temperature=1.0, max_tokens=4, ignore_eos=True)
         seq = Sequence(list(range(num_tokens)), sp)
         return seq
+
     return _make
 
 
 def test_decode_priority_over_long_prefill(seq_factory):
     """decode 序列必须先于 prefill 被调度（TPOT 保障的核心）"""
     sched = Scheduler(make_config())
-    long_prompt = seq_factory(1000)     # 超过 chunk_size=256, 会分块
+    long_prompt = seq_factory(1000)  # 超过 chunk_size=256, 会分块
     sched.add(long_prompt)
 
     # 第一步: prefill 第一个 chunk

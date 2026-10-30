@@ -11,6 +11,7 @@ layers/rotary_embedding.py - RoPE 旋转位置编码
 """
 
 from functools import lru_cache
+
 import torch
 import torch.nn as nn
 
@@ -49,8 +50,7 @@ class RotaryEmbedding(nn.Module):
         base: RoPE 频率基数（控制频谱分布）
     """
 
-    def __init__(self, head_size: int, rotary_dim: int,
-                 max_position_embeddings: int, base: float = 10000.0):
+    def __init__(self, head_size: int, rotary_dim: int, max_position_embeddings: int, base: float = 10000.0):
         super().__init__()
         assert head_size == rotary_dim, "当前实现要求 head_size == rotary_dim"
         self.head_size = head_size

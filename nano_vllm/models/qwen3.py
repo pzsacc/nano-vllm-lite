@@ -15,20 +15,20 @@ models/qwen3.py - Qwen3 模型架构实现
 """
 
 import torch
-import torch.nn as nn
 import torch.distributed as dist
+import torch.nn as nn
 from transformers import Qwen3Config
 
 from nano_vllm.layers.activation import SiluAndMul
 from nano_vllm.layers.attention import Attention
+from nano_vllm.layers.embed_head import ParallelLMHead, VocabParallelEmbedding
 from nano_vllm.layers.layernorm import RMSNorm
 from nano_vllm.layers.linear import (
-    QKVParallelLinear,
     MergedColumnParallelLinear,
+    QKVParallelLinear,
     RowParallelLinear,
 )
 from nano_vllm.layers.rotary_embedding import get_rope
-from nano_vllm.layers.embed_head import VocabParallelEmbedding, ParallelLMHead
 
 
 class Qwen3Attention(nn.Module):
@@ -48,7 +48,7 @@ class Qwen3Attention(nn.Module):
         self.num_heads = config.num_attention_heads // tp_size
         self.num_kv_heads = config.num_key_value_heads // tp_size
         self.head_dim = getattr(config, "head_dim", config.hidden_size // config.num_attention_heads)
-        self.scale = self.head_dim ** -0.5
+        self.scale = self.head_dim**-0.5
 
         # 融合 QKV 投影
         self.qkv_proj = QKVParallelLinear(
@@ -68,8 +68,10 @@ class Qwen3Attention(nn.Module):
         # RoPE
         rope_theta = getattr(config, "rope_theta", 1000000.0)
         self.rotary_emb = get_rope(
-            self.head_dim, self.head_dim,
-            config.max_position_embeddings, rope_theta,
+            self.head_dim,
+            self.head_dim,
+            config.max_position_embeddings,
+            rope_theta,
         )
 
         # QK-Norm（Qwen3 无 bias 时启用）
@@ -139,9 +141,7 @@ class Qwen3MLP(nn.Module):
             bias=False,
         )
         # Down 投影
-        self.down_proj = RowParallelLinear(
-            config.intermediate_size, config.hidden_size, bias=False
-        )
+        self.down_proj = RowParallelLinear(config.intermediate_size, config.hidden_size, bias=False)
         self.act_fn = SiluAndMul()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -175,8 +175,9 @@ class Qwen3DecoderLayer(nn.Module):
         self.input_layernorm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
         self.post_attention_layernorm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
 
-    def forward(self, hidden_states: torch.Tensor, positions: torch.Tensor,
-                residual: torch.Tensor = None) -> tuple[torch.Tensor, torch.Tensor]:
+    def forward(
+        self, hidden_states: torch.Tensor, positions: torch.Tensor, residual: torch.Tensor = None
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """Decoder layer 前向
 
         Args:
@@ -215,9 +216,7 @@ class Qwen3Model(nn.Module):
     def __init__(self, config: Qwen3Config):
         super().__init__()
         self.embed_tokens = VocabParallelEmbedding(config.vocab_size, config.hidden_size)
-        self.layers = nn.ModuleList([
-            Qwen3DecoderLayer(config) for _ in range(config.num_hidden_layers)
-        ])
+        self.layers = nn.ModuleList([Qwen3DecoderLayer(config) for _ in range(config.num_hidden_layers)])
         self.norm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
 
     def forward(self, input_ids: torch.Tensor, positions: torch.Tensor) -> torch.Tensor:

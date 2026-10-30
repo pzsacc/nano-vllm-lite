@@ -6,7 +6,7 @@ layers/layernorm.py - RMSNorm 实现（支持融合 Add+Norm）
 2. add_rms_forward: 融合 Residual Add + RMSNorm（减少一次 memory read/write）
 
 两种路径均使用 @torch.compile 自动优化为融合 kernel。
-如果 CUDA 扩展 (pz_vllm_ops) 可用，可选择使用手写 CUDA kernel 加速。
+如果 CUDA 扩展 (fused_add_rmsnorm) 可用，可选择使用手写 CUDA kernel 加速。
 """
 
 import torch
@@ -70,7 +70,7 @@ class RMSNorm(nn.Module):
         x = x * torch.rsqrt(variance + self.eps)
         return (x * self.weight).to(input_dtype), residual
 
-    def forward(self, x: torch.Tensor, residual: torch.Tensor = None):
+    def forward(self, x: torch.Tensor, residual: torch.Tensor | None = None):
         """统一前向接口
 
         Args:

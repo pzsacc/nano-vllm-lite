@@ -12,9 +12,10 @@ kernels/__init__.py - 自定义 CUDA Kernel 扩展包
 _CUDA_AVAILABLE = False
 
 try:
-    import torch  # noqa: F401  CUDA 扩展依赖 libc10，必须先于扩展加载
     import fused_add_rmsnorm
     import fused_rope_cuda
+    import torch  # noqa: F401  CUDA 扩展依赖 libc10，必须先于扩展加载
+
     _CUDA_AVAILABLE = True
 except (ImportError, OSError):
     pass

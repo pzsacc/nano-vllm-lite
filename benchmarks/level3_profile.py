@@ -10,9 +10,10 @@ benchmarks/level3_profile.py - L3 算子与 profile
 - nsys: 打印 Nsight Systems / Nsight Compute 的命令模板与解读指南
   (nsys/ncu 需原生二进制支持, 这里提供可复制的命令与 nvtx 标记说明)
 """
+
+import argparse
 import os
 import sys
-import argparse
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -20,16 +21,14 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import torch
 
 
-def profile_engine(model_path: str, input_len: int, output_len: int,
-                   num_prompts: int, trace_dir: str):
+def profile_engine(model_path: str, input_len: int, output_len: int, num_prompts: int, trace_dir: str):
     """torch.profiler: 分别 profile prefill 与 decode, 导出 Chrome Trace"""
+    from torch.profiler import ProfilerActivity, profile
+
     from nano_vllm import LLM, SamplingParams
-    from torch.profiler import (profile, ProfilerActivity,
-                                tensorboard_trace_handler)
 
     os.makedirs(trace_dir, exist_ok=True)
-    llm = LLM(model_path, max_model_len=max(input_len + output_len, 2048),
-              enable_fp8_kvcache=False)
+    llm = LLM(model_path, max_model_len=max(input_len + output_len, 2048), enable_fp8_kvcache=False)
     prompts = [" hi " * (input_len // 4)] * num_prompts
     sp = SamplingParams(temperature=1.0, max_tokens=output_len, ignore_eos=True)
 
@@ -65,7 +64,6 @@ def _print_top_kernels(prof, label: str):
 
 def bandwidth_benchmark():
     """Fused Add+RMSNorm 带宽对拍: eager / compile / CUDA kernel"""
-    from torch import nn
 
     try:
         from nano_vllm.kernels import apply_add_rmsnorm, is_cuda_kernels_available
@@ -103,8 +101,9 @@ def bandwidth_benchmark():
     print("=" * 72)
     print("L3 算子带宽对拍: Fused Add+RMSNorm (hidden=4096, bf16)")
     print("=" * 72)
-    print(f"{'tokens':>8}{'eager ms':>10}{'compile ms':>11}{'cuda ms':>9}"
-          f"{'eager GB/s':>11}{'cuda GB/s':>10}{'加速比':>7}")
+    print(
+        f"{'tokens':>8}{'eager ms':>10}{'compile ms':>11}{'cuda ms':>9}{'eager GB/s':>11}{'cuda GB/s':>10}{'加速比':>7}"
+    )
     print("-" * 72)
     for n in (1024, 4096, 16384):
         x = torch.randn(n, H, dtype=torch.bfloat16, device="cuda")
@@ -115,8 +114,7 @@ def bandwidth_benchmark():
         # 有效字节: 读 x + 读 residual + 写 out + 写 residual = 8B/elem + weight
         bytes_moved = n * H * 2 * 4 + H * 2
         gbps = lambda t: bytes_moved / (t / 1e3) / 1e9  # noqa: E731
-        print(f"{n:>8}{t_e:>10.3f}{t_c:>11.3f}{t_k:>9.3f}"
-              f"{gbps(t_e):>11.0f}{gbps(t_k):>10.0f}{t_e / t_k:>6.2f}x")
+        print(f"{n:>8}{t_e:>10.3f}{t_c:>11.3f}{t_k:>9.3f}{gbps(t_e):>11.0f}{gbps(t_k):>10.0f}{t_e / t_k:>6.2f}x")
     print("\n教学点: RMSNorm 是 memory-bound 算子, 收益上限 = 减少的访存次数;")
     print("        compile 与手写 kernel 大致持平说明融合已是主要收益 (见 docs/05)。")
 
@@ -145,8 +143,7 @@ ncu --kernel-name regex:add_rmsnorm --set full \\
 def main():
     parser = argparse.ArgumentParser(description="L3 算子与 profile")
     parser.add_argument("--model", required=False, default=None)
-    parser.add_argument("--tool", choices=["profiler", "bandwidth", "nsys", "all"],
-                        default="profiler")
+    parser.add_argument("--tool", choices=["profiler", "bandwidth", "nsys", "all"], default="profiler")
     parser.add_argument("--input-len", type=int, default=512)
     parser.add_argument("--output-len", type=int, default=128)
     parser.add_argument("--num-prompts", type=int, default=8)
@@ -164,12 +161,10 @@ def main():
         parser.error("--tool profiler/all 需要 --model")
 
     if args.tool == "profiler":
-        profile_engine(args.model, args.input_len, args.output_len,
-                       args.num_prompts, args.trace_dir)
+        profile_engine(args.model, args.input_len, args.output_len, args.num_prompts, args.trace_dir)
     else:
         bandwidth_benchmark()
-        profile_engine(args.model, args.input_len, args.output_len,
-                       args.num_prompts, args.trace_dir)
+        profile_engine(args.model, args.input_len, args.output_len, args.num_prompts, args.trace_dir)
         print(NSYS_GUIDE)
 
 

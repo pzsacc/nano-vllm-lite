@@ -12,9 +12,9 @@ layers/linear.py - Tensor Parallel 线性层
 """
 
 import torch
+import torch.distributed as dist
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.distributed as dist
 
 
 def divide(numerator: int, denominator: int) -> int:
@@ -150,8 +150,9 @@ class QKVParallelLinear(ColumnParallelLinear):
         bias: 是否使用偏置
     """
 
-    def __init__(self, hidden_size: int, head_size: int,
-                 total_num_heads: int, total_num_kv_heads: int, bias: bool = False):
+    def __init__(
+        self, hidden_size: int, head_size: int, total_num_heads: int, total_num_kv_heads: int, bias: bool = False
+    ):
         self.head_size = head_size
         tp_size = dist.get_world_size() if dist.is_initialized() else 1
         self.num_heads = divide(total_num_heads, tp_size)
@@ -167,7 +168,6 @@ class QKVParallelLinear(ColumnParallelLinear):
             loaded_weight: 加载的权重
             loaded_shard_id: "q", "k", 或 "v"
         """
-        tp_size = self.tp_size
         if loaded_shard_id == "q":
             shard_offset = 0
             shard_size = self.num_heads * self.head_size

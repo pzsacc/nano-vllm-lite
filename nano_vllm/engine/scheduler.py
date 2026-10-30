@@ -14,8 +14,8 @@ engine/scheduler.py - 混合调度器（Chunked Prefill + Continuous Batching）
 from collections import deque
 
 from nano_vllm.config import Config
-from nano_vllm.engine.sequence import Sequence, SequenceStatus
 from nano_vllm.engine.block_manager import BlockManager
+from nano_vllm.engine.sequence import Sequence, SequenceStatus
 
 
 class Scheduler:
@@ -228,8 +228,7 @@ class Scheduler:
             if seq.num_cached_tokens < seq.num_tokens:
                 continue
             seq.append_token(token_id)
-            if (not seq.ignore_eos and token_id == self.eos) or \
-               seq.num_completion_tokens == seq.max_tokens:
+            if (not seq.ignore_eos and token_id == self.eos) or seq.num_completion_tokens == seq.max_tokens:
                 seq.status = SequenceStatus.FINISHED
                 self.block_manager.deallocate(seq)
                 if seq in self.running:

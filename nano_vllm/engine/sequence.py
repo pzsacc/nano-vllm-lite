@@ -17,10 +17,11 @@ from nano_vllm.sampling_params import SamplingParams
 
 class SequenceStatus(Enum):
     """序列生命周期状态"""
-    WAITING = auto()    # 等待 prefill 调度
-    RUNNING = auto()    # 已完成 prefill，正在 decode
-    FINISHED = auto()   # 生成完毕（遇到 EOS 或达到 max_tokens）
-    ABORTED = auto()    # 被客户端取消
+
+    WAITING = auto()  # 等待 prefill 调度
+    RUNNING = auto()  # 已完成 prefill，正在 decode
+    FINISHED = auto()  # 生成完毕（遇到 EOS 或达到 max_tokens）
+    ABORTED = auto()  # 被客户端取消
 
 
 class Sequence:
@@ -42,7 +43,7 @@ class Sequence:
     block_size = 256
     counter = count()
 
-    def __init__(self, token_ids: list[int], sampling_params: SamplingParams = SamplingParams()):
+    def __init__(self, token_ids: list[int], sampling_params: SamplingParams | None = None):
         """初始化序列
 
         Args:
@@ -59,6 +60,8 @@ class Sequence:
         self.num_scheduled_tokens = 0
         self.is_prefill = True
         self.block_table: list[int] = []
+        if sampling_params is None:
+            sampling_params = SamplingParams()
         self.temperature = sampling_params.temperature
         self.max_tokens = sampling_params.max_tokens
         self.ignore_eos = sampling_params.ignore_eos
@@ -84,12 +87,12 @@ class Sequence:
     @property
     def prompt_token_ids(self) -> list[int]:
         """原始 prompt 的 token IDs"""
-        return self.token_ids[:self.num_prompt_tokens]
+        return self.token_ids[: self.num_prompt_tokens]
 
     @property
     def completion_token_ids(self) -> list[int]:
         """已生成的 completion token IDs"""
-        return self.token_ids[self.num_prompt_tokens:]
+        return self.token_ids[self.num_prompt_tokens :]
 
     @property
     def num_blocks(self) -> int:
@@ -111,7 +114,7 @@ class Sequence:
             该 block 范围内的 token ID 列表
         """
         assert 0 <= i < self.num_blocks
-        return self.token_ids[i * self.block_size: (i + 1) * self.block_size]
+        return self.token_ids[i * self.block_size : (i + 1) * self.block_size]
 
     def append_token(self, token_id: int):
         """追加一个新生成的 token
@@ -129,13 +132,25 @@ class Sequence:
         prefill 阶段传输完整 token_ids，decode 阶段只传 last_token 以节省带宽
         """
         last_state = self.last_token if not self.is_prefill else self.token_ids
-        return (self.num_tokens, self.num_prompt_tokens, self.num_cached_tokens,
-                self.num_scheduled_tokens, self.block_table, last_state)
+        return (
+            self.num_tokens,
+            self.num_prompt_tokens,
+            self.num_cached_tokens,
+            self.num_scheduled_tokens,
+            self.block_table,
+            last_state,
+        )
 
     def __setstate__(self, state):
         """反序列化（TP worker 端恢复序列状态）"""
-        (self.num_tokens, self.num_prompt_tokens, self.num_cached_tokens,
-         self.num_scheduled_tokens, self.block_table, last_state) = state
+        (
+            self.num_tokens,
+            self.num_prompt_tokens,
+            self.num_cached_tokens,
+            self.num_scheduled_tokens,
+            self.block_table,
+            last_state,
+        ) = state
         if isinstance(last_state, list):
             self.token_ids = last_state
             self.last_token = self.token_ids[-1]

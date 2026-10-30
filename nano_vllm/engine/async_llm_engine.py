@@ -51,7 +51,7 @@ class StreamableLLMEngine(LLMEngine):
     重写 step 方法，每步为所有活跃序列产出新 token（而非仅输出已完成序列）。
     """
 
-    def add_request(self, prompt, sampling_params: SamplingParams = SamplingParams()) -> int:
+    def add_request(self, prompt, sampling_params: SamplingParams | None = None) -> int:
         """添加请求并返回序列 ID
 
         Args:
@@ -65,6 +65,8 @@ class StreamableLLMEngine(LLMEngine):
             token_ids = self.tokenizer.encode(prompt)
         else:
             token_ids = prompt
+        if sampling_params is None:
+            sampling_params = SamplingParams()
         seq = Sequence(token_ids, sampling_params)
         self.scheduler.add(seq)
         return seq.seq_id
@@ -130,8 +132,7 @@ class AsyncLLMEngine:
                 self.engine.scheduler.abort(seq_id)
                 queue = self.stream_queues.pop(seq_id, None)
                 if queue:
-                    self.loop.call_soon_threadsafe(
-                        queue.put_nowait, ("", True))
+                    self.loop.call_soon_threadsafe(queue.put_nowait, ("", True))
 
             # 处理新请求
             while self.new_requests:
@@ -149,12 +150,11 @@ class AsyncLLMEngine:
             for seq_id, text, is_finished in results:
                 queue = self.stream_queues.get(seq_id)
                 if queue:
-                    self.loop.call_soon_threadsafe(
-                        queue.put_nowait, (text, is_finished))
+                    self.loop.call_soon_threadsafe(queue.put_nowait, (text, is_finished))
                     if is_finished:
                         del self.stream_queues[seq_id]
 
-    async def generate_stream(self, prompt, sampling_params: SamplingParams = SamplingParams()) -> AsyncGenerator[str, None]:
+    async def generate_stream(self, prompt, sampling_params: SamplingParams | None = None) -> AsyncGenerator[str, None]:
         """异步流式生成
 
         Args:
@@ -167,8 +167,9 @@ class AsyncLLMEngine:
         if self.loop is None:
             self.loop = asyncio.get_running_loop()
 
+        if sampling_params is None:
+            sampling_params = SamplingParams()
         stream_queue: asyncio.Queue = asyncio.Queue()
-        detokenizer = IncrementalDetokenizer(self.engine.tokenizer)
         self.new_requests.append((prompt, sampling_params, stream_queue))
 
         try:
@@ -216,7 +217,7 @@ class IncrementalDetokenizer:
         self.token_ids.append(new_token_id)
         text = self.tokenizer.decode(self.token_ids, skip_special_tokens=False)
         cur_bytes = text.encode("utf-8", errors="replace")
-        delta = cur_bytes[self._emitted_len:]
+        delta = cur_bytes[self._emitted_len :]
         flush_len = len(delta) - _utf8_truncated_len(delta)
         self._emitted_len += flush_len
         return delta[:flush_len].decode("utf-8", errors="replace")

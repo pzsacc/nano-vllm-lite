@@ -60,7 +60,7 @@ curl http://localhost:8000/v1/completions -H "Content-Type: application/json" \
 ## 架构与读码路径
 
 ```
-入口    llm.py ───────────────────────────────────── ~50 行
+入口    engine/llm_engine.py ──────────────────────── ~160 行
           │
 调度 ★  engine/scheduler.py ──────────────────────── 260 行   decode 优先 + chunked 预算
           │
@@ -122,7 +122,7 @@ pytest tests/                # 全量：含 CUDA Graph parity / kernel parity
 - FP8 decode 接入 FlashInfer（本地已验证 FP8 KV decode 可运行且快于 FP16）
 - ZMQ 进程化引擎（参照 vLLM V1 EngineCore 架构）
 - Speculative Decoding（N-gram proposer）
-- 模型注册机制（LLaMA / Mistral）
+- 扩展模型支持（LLaMA / Mistral 等通过 MODEL_REGISTRY 注册）
 
 ## 致谢
 

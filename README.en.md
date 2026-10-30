@@ -60,7 +60,7 @@ curl http://localhost:8000/v1/completions -H "Content-Type: application/json" \
 ## Architecture & Reading Path
 
 ```
-entry   llm.py ───────────────────────────────────── ~50 lines
+entry   engine/llm_engine.py ──────────────────────── ~160 lines
           │
 sched ★ engine/scheduler.py ──────────────────────── 260 lines   decode-first + chunked budget
           │
@@ -122,7 +122,7 @@ Each test file header documents the regression it guards against.
 - FlashInfer-backed FP8 decode (verified locally: runs and outperforms FP16)
 - ZMQ-based multi-process engine (mirroring vLLM V1 EngineCore)
 - Speculative Decoding (N-gram proposer)
-- Model registry (LLaMA / Mistral)
+- Expand model support (LLaMA / Mistral via MODEL_REGISTRY)
 
 ## Acknowledgements
 

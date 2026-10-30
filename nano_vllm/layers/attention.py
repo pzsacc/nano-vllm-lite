@@ -20,6 +20,7 @@ import torch.nn as nn
 try:
     import triton
     import triton.language as tl
+
     _TRITON_AVAILABLE = True
 except ImportError:
     _TRITON_AVAILABLE = False
@@ -32,12 +33,10 @@ except ImportError:
             return _TritonStub()
 
         def __getitem__(self, grid):
-            raise RuntimeError(
-                "triton 未安装：pip install triton（GPU 环境运行引擎必需）")
+            raise RuntimeError("triton 未安装：pip install triton（GPU 环境运行引擎必需）")
 
         def __call__(self, *args, **kwargs):
-            raise RuntimeError(
-                "triton 未安装：pip install triton（GPU 环境运行引擎必需）")
+            raise RuntimeError("triton 未安装：pip install triton（GPU 环境运行引擎必需）")
 
         def jit(self, func=None, **kwargs):
             if func is not None:
@@ -55,14 +54,18 @@ except ImportError:
 
 from nano_vllm.utils.context import get_context
 
-
 # ======================== Triton Kernels ========================
+
 
 @triton.jit
 def store_kvcache_kernel(
-    key_ptr, key_stride,
-    value_ptr, value_stride,
-    k_cache_ptr, v_cache_ptr, slot_mapping_ptr,
+    key_ptr,
+    key_stride,
+    value_ptr,
+    value_stride,
+    k_cache_ptr,
+    v_cache_ptr,
+    slot_mapping_ptr,
     D: tl.constexpr,
 ):
     """将单个 token 的 KV 向量写入 paged cache 对应 slot
@@ -86,9 +89,14 @@ def store_kvcache_kernel(
     tl.store(v_cache_ptr + cache_offsets, value)
 
 
-def store_kvcache(key: torch.Tensor, value: torch.Tensor,
-                  k_cache: torch.Tensor, v_cache: torch.Tensor,
-                  slot_mapping: torch.Tensor, fp8_enabled: bool = False):
+def store_kvcache(
+    key: torch.Tensor,
+    value: torch.Tensor,
+    k_cache: torch.Tensor,
+    v_cache: torch.Tensor,
+    slot_mapping: torch.Tensor,
+    fp8_enabled: bool = False,
+):
     """调用 Triton kernel 将 KV 写入 paged cache
 
     Args:
@@ -102,21 +110,27 @@ def store_kvcache(key: torch.Tensor, value: torch.Tensor,
     num_tokens, num_heads, head_dim = key.shape
     D = num_heads * head_dim
     if not _TRITON_AVAILABLE:
-        raise RuntimeError(
-            "store_kvcache 需要 triton (pip install triton)。"
-            "无 GPU 环境请使用 tests/ 中的 CPU 单测。")
+        raise RuntimeError("store_kvcache 需要 triton (pip install triton)。无 GPU 环境请使用 tests/ 中的 CPU 单测。")
     store_kvcache_kernel[(num_tokens,)](
-        key, key.stride(0),
-        value, value.stride(0),
-        k_cache, v_cache,
-        slot_mapping, D=D,
+        key,
+        key.stride(0),
+        value,
+        value.stride(0),
+        k_cache,
+        v_cache,
+        slot_mapping,
+        D=D,
     )
 
 
 @triton.jit
 def fp8_paged_attention_decode_kernel(
-    out_ptr, q_ptr, k_cache_ptr, v_cache_ptr,
-    block_tables_ptr, context_lens_ptr,
+    out_ptr,
+    q_ptr,
+    k_cache_ptr,
+    v_cache_ptr,
+    block_tables_ptr,
+    context_lens_ptr,
     num_heads: tl.constexpr,
     num_kv_heads: tl.constexpr,
     head_dim: tl.constexpr,
@@ -156,10 +170,7 @@ def fp8_paged_attention_decode_kernel(
         # 跳过超出 context_len 的 block
         block_valid = block_start < context_len
 
-        physical_block = tl.load(
-            block_tables_ptr + seq_idx * max_num_blocks + block_idx,
-            mask=block_valid, other=0
-        )
+        physical_block = tl.load(block_tables_ptr + seq_idx * max_num_blocks + block_idx, mask=block_valid, other=0)
 
         # 遍历 block 内的 token（constexpr 循环 + mask）
         for token_offset in range(block_size):
@@ -171,10 +182,8 @@ def fp8_paged_attention_decode_kernel(
             kv_offset = slot * D + kv_head_idx * head_dim
 
             # 加载 FP8 KV 并反量化
-            k = tl.load(k_cache_ptr + kv_offset + dim_offsets,
-                        mask=valid, other=0.0).to(tl.float32)
-            v = tl.load(v_cache_ptr + kv_offset + dim_offsets,
-                        mask=valid, other=0.0).to(tl.float32)
+            k = tl.load(k_cache_ptr + kv_offset + dim_offsets, mask=valid, other=0.0).to(tl.float32)
+            v = tl.load(v_cache_ptr + kv_offset + dim_offsets, mask=valid, other=0.0).to(tl.float32)
 
             # QK^T (scaled dot product)
             score = tl.sum(q * k) * scale
@@ -197,8 +206,12 @@ def fp8_paged_attention_decode_kernel(
 
 
 def custom_fp8_decode_attention(
-    q: torch.Tensor, k_cache: torch.Tensor, v_cache: torch.Tensor,
-    block_tables: torch.Tensor, context_lens: torch.Tensor, scale: float,
+    q: torch.Tensor,
+    k_cache: torch.Tensor,
+    v_cache: torch.Tensor,
+    block_tables: torch.Tensor,
+    context_lens: torch.Tensor,
+    scale: float,
     block_size: int,
 ) -> torch.Tensor:
     """FP8 Paged Attention Decode 的 Python 入口
@@ -223,8 +236,12 @@ def custom_fp8_decode_attention(
     grid = (batch_size, num_heads)
 
     fp8_paged_attention_decode_kernel[grid](
-        out, q, k_cache.reshape(-1), v_cache.reshape(-1),
-        block_tables, context_lens,
+        out,
+        q,
+        k_cache.reshape(-1),
+        v_cache.reshape(-1),
+        block_tables,
+        context_lens,
         num_heads=num_heads,
         num_kv_heads=num_kv_heads,
         head_dim=head_dim,
@@ -236,6 +253,7 @@ def custom_fp8_decode_attention(
 
 
 # ======================== Attention Module ========================
+
 
 class Attention(nn.Module):
     """统一的 Attention 模块
@@ -283,8 +301,7 @@ class Attention(nn.Module):
 
         # 写入 KV Cache
         if self.k_cache.numel() > 0:
-            store_kvcache(k, v, self.k_cache, self.v_cache,
-                         ctx.slot_mapping, fp8_enabled=self.fp8_enabled)
+            store_kvcache(k, v, self.k_cache, self.v_cache, ctx.slot_mapping, fp8_enabled=self.fp8_enabled)
 
         if ctx.is_prefill:
             return self._prefill_attention(q, k, v, ctx)
@@ -306,7 +323,9 @@ class Attention(nn.Module):
                 k, v = self.k_cache, self.v_cache
 
         out = flash_attn_varlen_func(
-            q, k, v,
+            q,
+            k,
+            v,
             cu_seqlens_q=ctx.cu_seqlens_q,
             cu_seqlens_k=ctx.cu_seqlens_k,
             max_seqlen_q=ctx.max_seqlen_q,
@@ -324,9 +343,13 @@ class Attention(nn.Module):
         """
         if self.fp8_enabled:
             out = custom_fp8_decode_attention(
-                q, self.k_cache, self.v_cache,
-                ctx.block_tables, ctx.context_lens,
-                self.scale, block_size=self.k_cache.shape[1],
+                q,
+                self.k_cache,
+                self.v_cache,
+                ctx.block_tables,
+                ctx.context_lens,
+                self.scale,
+                block_size=self.k_cache.shape[1],
             )
             return out
         else:
@@ -335,7 +358,8 @@ class Attention(nn.Module):
             # k_cache/v_cache: [num_blocks, block_size, num_kv_heads, head_dim]
             out = flash_attn_with_kvcache(
                 q.unsqueeze(1),
-                self.k_cache, self.v_cache,
+                self.k_cache,
+                self.v_cache,
                 cache_seqlens=ctx.context_lens,
                 block_table=ctx.block_tables,
                 softmax_scale=self.scale,
