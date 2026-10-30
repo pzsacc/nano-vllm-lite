@@ -11,13 +11,20 @@ setup.py - CUDA 扩展编译配置
 """
 
 import os
+
 from setuptools import setup
 
+CUDA_AVAILABLE = False
+BuildExtension = None
+
 try:
+    import torch
     from torch.utils.cpp_extension import BuildExtension, CUDAExtension
-    CUDA_AVAILABLE = True
+
+    if torch.cuda.is_available() or os.environ.get("CUDA_HOME") or os.environ.get("CUDA_PATH"):
+        CUDA_AVAILABLE = True
 except ImportError:
-    CUDA_AVAILABLE = False
+    pass
 
 
 def get_cuda_extensions():
