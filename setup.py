@@ -31,7 +31,10 @@ def get_cuda_extensions():
     if not CUDA_AVAILABLE:
         return []
 
-    kernel_dir = os.path.join(os.path.dirname(__file__), "nano_vllm", "kernels")
+    # 必须用相对 setup.py 目录的路径：PEP 660 editable 构建下 __file__ 是绝对路径，
+    # 而 setuptools 的 egg_info 校验会拒绝绝对路径的 sources（build backend 执行前
+    # 已 chdir 到 setup.py 所在目录，相对路径等价且可通过校验）。
+    kernel_dir = os.path.join("nano_vllm", "kernels")
     extra_compile_args = {
         "cxx": ["-O3"],
         "nvcc": ["-O3", "--use_fast_math"],
